@@ -1,0 +1,17 @@
+{
+  "name": "Vitaleon",
+  "manufacturer": "Andersson Audio",
+  "version": "0.3.19",
+  "format": "vst2",
+  "kind": "instrument",
+  "uid": "Al7q",
+  "numInputs": 0,
+  "numOutputs": 2,
+  "category": "Synth",
+  "file32": "VST/vitaleon-arm32.so",
+  "file64": "VST/vitaleon-arm64.so",
+  "description": "Experimental full Vital 1.0.6 engine port with native MPC graphics, modulation, effects and preset/bank import. Some newer Vital features remain unsupported; hardware validation pending.",
+  "author": "Andersson Audio",
+  "url": "",
+  "license": "GPL-3.0-or-later"
+}

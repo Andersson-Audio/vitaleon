@@ -1,0 +1,566 @@
+{
+  "caption-73e82324da9a02ae-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Kill"
+    ]
+  },
+  "caption-73e82324da9a02ae-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Kill"
+    ]
+  },
+  "caption-be4ca88509deec21-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Steal"
+    ]
+  },
+  "caption-be4ca88509deec21-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Steal"
+    ]
+  },
+  "caption-fc2dc855ab8705e6-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "1x"
+    ]
+  },
+  "caption-fc2dc855ab8705e6-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "1x"
+    ]
+  },
+  "caption-cdad9acfa38e7158-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "2x"
+    ]
+  },
+  "caption-cdad9acfa38e7158-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "2x"
+    ]
+  },
+  "caption-be186b21969d9c2e-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "4x"
+    ]
+  },
+  "caption-be186b21969d9c2e-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "4x"
+    ]
+  },
+  "caption-e6f9dedfd3b13d1e-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "8x"
+    ]
+  },
+  "caption-e6f9dedfd3b13d1e-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "8x"
+    ]
+  },
+  "caption-80e026239cc04f13-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "SPREAD"
+    ]
+  },
+  "caption-80e026239cc04f13-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "SPREAD"
+    ]
+  },
+  "caption-3566d06f4f78b855-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "ROTATE"
+    ]
+  },
+  "caption-3566d06f4f78b855-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "ROTATE"
+    ]
+  },
+  "caption-705c71b2c41ad53d-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "None"
+    ]
+  },
+  "caption-705c71b2c41ad53d-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "None"
+    ]
+  },
+  "caption-b52cf39a5a528817-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Pre"
+    ]
+  },
+  "caption-b52cf39a5a528817-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Pre"
+    ]
+  },
+  "caption-b3771d6a39bb21d5-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Post"
+    ]
+  },
+  "caption-b3771d6a39bb21d5-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Post"
+    ]
+  },
+  "caption-ec2b4fe09a9cf08c-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Seconds"
+    ]
+  },
+  "caption-ec2b4fe09a9cf08c-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Seconds"
+    ]
+  },
+  "caption-9eed30078944350f-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Tempo"
+    ]
+  },
+  "caption-9eed30078944350f-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Tempo"
+    ]
+  },
+  "caption-99902b01b0d41ebe-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Tempo Dotted"
+    ]
+  },
+  "caption-99902b01b0d41ebe-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Tempo Dotted"
+    ]
+  },
+  "caption-247b83b9256548f5-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Tempo",
+      "Triplets"
+    ]
+  },
+  "caption-247b83b9256548f5-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Tempo",
+      "Triplets"
+    ]
+  },
+  "caption-c9c3fc1d3cf2ec78-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Mono"
+    ]
+  },
+  "caption-c9c3fc1d3cf2ec78-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Mono"
+    ]
+  },
+  "caption-fabc29e94f9d947b-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Stereo"
+    ]
+  },
+  "caption-fabc29e94f9d947b-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Stereo"
+    ]
+  },
+  "caption-5cb203e34d1a0486-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Ping Pong"
+    ]
+  },
+  "caption-5cb203e34d1a0486-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Ping Pong"
+    ]
+  },
+  "caption-d404679854e690da-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Mid Ping Pong"
+    ]
+  },
+  "caption-d404679854e690da-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Mid Ping Pong"
+    ]
+  },
+  "caption-891dcf358fb6644e-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Multiband"
+    ]
+  },
+  "caption-891dcf358fb6644e-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Multiband"
+    ]
+  },
+  "caption-be9357b13a6a9ac6-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Low Band"
+    ]
+  },
+  "caption-be9357b13a6a9ac6-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Low Band"
+    ]
+  },
+  "caption-32fd7f7fdf544566-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "High Band"
+    ]
+  },
+  "caption-32fd7f7fdf544566-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "High Band"
+    ]
+  },
+  "caption-587543f93272f103-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Single Band"
+    ]
+  },
+  "caption-587543f93272f103-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Single Band"
+    ]
+  },
+  "caption-b3546635a6a535d0-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Shelf"
+    ]
+  },
+  "caption-b3546635a6a535d0-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Shelf"
+    ]
+  },
+  "caption-5894a5ac9879e5a9-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Notch"
+    ]
+  },
+  "caption-5894a5ac9879e5a9-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Notch"
+    ]
+  },
+  "caption-c48d5c617601d878-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Low Pass"
+    ]
+  },
+  "caption-c48d5c617601d878-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Low Pass"
+    ]
+  },
+  "caption-305afbba1aa68131-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "High Pass"
+    ]
+  },
+  "caption-305afbba1aa68131-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "High Pass"
+    ]
+  },
+  "caption-64d5a6c5d826a2f0-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Perlin"
+    ]
+  },
+  "caption-64d5a6c5d826a2f0-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Perlin"
+    ]
+  },
+  "caption-c71a0b228b79d1e6-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Sample & Hold"
+    ]
+  },
+  "caption-c71a0b228b79d1e6-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Sample & Hold"
+    ]
+  },
+  "caption-4d6cfc51f676d7fa-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Sine",
+      "Interpolate"
+    ]
+  },
+  "caption-4d6cfc51f676d7fa-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Sine",
+      "Interpolate"
+    ]
+  },
+  "caption-f5c39888845eb74a-0.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Lorenz",
+      "Attractor"
+    ]
+  },
+  "caption-f5c39888845eb74a-1.png": {
+    "size": [
+      144,
+      52
+    ],
+    "texts": [
+      "Lorenz",
+      "Attractor"
+    ]
+  }
+}

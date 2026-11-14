@@ -1,0 +1,74 @@
+{
+  "kit": "cyan",
+  "pages": [
+    {
+      "name": "SYNTH",
+      "controls": [
+        {
+          "param": "Volume",
+          "widget": "fader"
+        },
+        {
+          "param": "Voices",
+          "widget": "knob"
+        },
+        {
+          "param": "Unison",
+          "widget": "knob"
+        },
+        {
+          "param": "Oscillators",
+          "widget": "knob"
+        },
+        {
+          "param": "Wave Pos",
+          "widget": "knob"
+        },
+        {
+          "param": "Cutoff",
+          "widget": "knob"
+        },
+        {
+          "param": "Resonance",
+          "widget": "knob"
+        },
+        {
+          "param": "Detune",
+          "widget": "knob"
+        },
+        {
+          "param": "Attack",
+          "widget": "fader"
+        },
+        {
+          "param": "Decay",
+          "widget": "fader"
+        },
+        {
+          "param": "Sustain",
+          "widget": "fader"
+        },
+        {
+          "param": "Release",
+          "widget": "fader"
+        },
+        {
+          "param": "Filter",
+          "widget": "switch"
+        },
+        {
+          "param": "Spectral",
+          "widget": "switch"
+        },
+        {
+          "param": "Warp",
+          "widget": "knob"
+        },
+        {
+          "param": "Bench",
+          "widget": "switch"
+        }
+      ]
+    }
+  ]
+}

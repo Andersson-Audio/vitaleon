@@ -1,0 +1,59 @@
+Vitaleon - Andersson Audio
+Third-party components and notices
+
+Vitaleon as a whole is distributed under the GNU General Public License,
+version 3 or later. The full text is in LICENSE.
+
+Vital synthesis source
+  Copyright 2013-2019 Matt Tytel. GNU GPL version 3 or later.
+  Source: https://github.com/mtytel/vital
+  Commit: 636ca0ef517a4db087a6a08a6a8a5e704e21f836
+  The source files keep their original notices (src/engine and related folders).
+  Vitaleon is an independent derivative. It is not endorsed by, affiliated with
+  or supported by Matt Tytel or Vital Audio. "Vital" is a trademark of its owner
+  and is named here only to identify the origin of the engine.
+
+MPC plugin framework and build tools
+  MIT License, Copyright (c) 2026 inMusic Brands, Inc.
+  Source: https://github.com/inmusic-software/mpc-plugin-builder-sdk
+  Commit: febd2ca5bd9eb16c4a412837196e145566bc981b
+  The SDK itself is not part of this repository. sdk-patches/ contains a patch
+  against that commit; the patch includes SDK code under the MIT License.
+
+KISS FFT
+  Copyright (c) 2003-2010 Mark Borgerding. BSD-3-Clause.
+  Notices: src/engine/kissfft/
+
+nlohmann JSON
+  Copyright (c) 2013-2018 Niels Lohmann. MIT License.
+  Notice: src/engine/json/json.h
+
+PFFFT
+  Julien Pommier, Hayati Ayguen, Dario Mambro and UCAR contributors.
+  Source: https://github.com/marton78/pffft
+  Commit: efc1dd2de6c3562fc464f905d37d9281f08a20dd
+  Notice: src/engine/pffft/LICENSE-PFFFT.txt
+
+miniz 3.0.2
+  MIT License. Rich Geldreich, Tenacious Software LLC and contributors.
+  Source: https://github.com/richgel999/miniz/tree/3.0.2
+  Only the portable decompressor is compiled. Notice: src/miniz/LICENSE
+
+Roboto Regular
+  Used to render the button captions of the skin. Apache License 2.0.
+  Notice: tools/fonts/LICENSE
+
+Not included
+  No preset or wavetable shipped with Vital, no service credentials, no sample
+  pack, no artwork of the desktop application, no Steinberg VST SDK and no MPC
+  firmware content.
+
+Andersson Audio
+  The MPC wrapper, state handling, asset loaders, bank reader, input checks,
+  the touch surface and its generator, the live graphs, the effect worker, the
+  modulation matrix pages and the library browser. GPL-3.0-or-later.
+
+Factory wavetables and factory sounds
+  Copyright (c) 2026 Drey Andersson (Andersson Audio). All rights reserved.
+  They are part of the release package only, not of the source, and are not
+  under the GPL. Terms: FACTORY-CONTENT-LICENSE.txt

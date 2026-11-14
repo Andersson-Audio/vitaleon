@@ -1,0 +1,134 @@
+diff --git a/framework/mpc_plugin.h b/framework/mpc_plugin.h
+index dbf239b..854f8cb 100644
+--- a/framework/mpc_plugin.h
++++ b/framework/mpc_plugin.h
+@@ -338,6 +338,12 @@ struct Program
+ 
+ class Plugin
+ {
++    struct StateTransaction {
++        Plugin& plugin;
++        bool writing;
++        StateTransaction(Plugin& p, bool w) : plugin(p), writing(w) { plugin.beginStateTransaction(writing); }
++        ~StateTransaction() { plugin.endStateTransaction(writing); }
++    };
+ public:
+     explicit Plugin(const PluginInfo& info) : info_(info) {}
+     virtual ~Plugin() { for (std::atomic<float>* v : values_) delete v; }
+@@ -354,6 +360,13 @@ public:
+     // Optional: extra state beyond parameters (sequencer patterns, sample data...).
+     virtual void saveExtraState(std::vector<uint8_t>& out) { (void)out; }
+     virtual void loadExtraState(const uint8_t* data, size_t size) { (void)data; (void)size; }
++    // Optional notification after a complete chunk/program restore. Parameter
++    // stores only here; expensive work must be staged away from the audio thread.
++    virtual void stateRestored(uint32_t savedParameterCount, bool hasExtra) { (void)savedParameterCount; (void)hasExtra; }
++    virtual void restoreParameter(int index,float normalized){setNormalised(index,normalized);}
++    virtual void beginStateTransaction(bool writing) { (void)writing; }
++    virtual void endStateTransaction(bool writing) { (void)writing; }
++    virtual void programSelected(int index) { (void)index; }
+     // Optional: custom value text. Return false to use the default formatting.
+     virtual bool formatValue(int index, float plainValue, std::string& out) { (void)index; (void)plainValue; (void)out; return false; }
+ 
+@@ -385,6 +398,10 @@ public:
+         parameterChanged(i, params_[(size_t)i].toPlain(norm));
+     }
+     void  set(int i, float plain) { if (i >= 0 && i < numParams()) setNormalised(i, params_[(size_t)i].toNormalised(plain)); }
++    // For readout/proxy publication without recursive parameterChanged callbacks.
++    void publishNormalised(int i, float norm) {
++        if (i >= 0 && i < numParams()) values_[(size_t)i]->store(clamp(norm, 0.0f, 1.0f), std::memory_order_relaxed);
++    }
+ 
+     // Tell the host a parameter moved (e.g. from a MIDI CC). Not from the audio thread if avoidable.
+     void notifyHostParameterChanged(int i)
+@@ -488,6 +505,7 @@ public:
+     // agrees with the plain value (exact round trip); otherwise the plain value wins (the parameter range changed).
+     const std::vector<uint8_t>& internalSaveState()
+     {
++        StateTransaction transaction(*this, false);
+         std::vector<uint8_t>& out = stateBuffer_;
+         out.clear();
+         auto putU32 = [&out](uint32_t v) { for (int i = 0; i < 4; ++i) out.push_back((uint8_t)(v >> (8 * i))); };
+@@ -516,7 +534,8 @@ public:
+         size_t pos = 4;
+         auto getU32 = [&](uint32_t& v) { if (pos + 4 > size) return false; v = 0; for (int i = 0; i < 4; ++i) v |= (uint32_t)data[pos + (size_t)i] << (8 * i); pos += 4; return true; };
+         uint32_t version = 0, n = 0;
+-        if (!getU32(version) || !getU32(n)) return false;
++        if (!getU32(version) || !getU32(n) || (version != 1 && version != 2) || n > 100000) return false;
++        std::vector<std::pair<int, float>> restored;
+         for (uint32_t k = 0; k < n; ++k)
+         {
+             if (pos >= size) return false;
+@@ -526,37 +545,44 @@ public:
+             uint32_t bits; getU32(bits); float plain; std::memcpy(&plain, &bits, 4);
+             float norm = -1.0f;
+             if (version >= 2) { if (pos + 4 > size) return false; getU32(bits); std::memcpy(&norm, &bits, 4); }
++            if (!std::isfinite(plain) || (version >= 2 && !std::isfinite(norm))) return false;
+             for (int i = 0; i < numParams(); ++i)
+             {
+                 if (params_[(size_t)i].id != id) continue;
+                 const Param& pr = params_[(size_t)i];
+                 if (norm >= 0.0f && norm <= 1.0f && std::fabs(pr.toPlain(norm) - plain) <= 1e-4f * (1.0f + std::fabs(plain)))
+-                    setNormalised(i, norm);
++                    restored.emplace_back(i, norm);
+                 else
+-                    set(i, plain);
++                    restored.emplace_back(i, pr.toNormalised(plain));
+                 break;
+             }
+         }
+         uint32_t extraLen = 0;
+-        if (getU32(extraLen) && pos + extraLen <= size && extraLen > 0) loadExtraState(data + pos, extraLen);
++        if (!getU32(extraLen) || extraLen > size - pos) return false;
++        StateTransaction transaction(*this, true);
++        for (const auto& value : restored) restoreParameter(value.first, value.second);
++        if (extraLen > 0) loadExtraState(data + pos, extraLen);
++        stateRestored(n, extraLen > 0);
+         stateLoadPending_.store(true, std::memory_order_release);
+         return true;
+     }
+ 
+-    int numPrograms() const { return programs_.empty() ? 1 : (int)programs_.size(); }
++    virtual int numPrograms() const { return programs_.empty() ? 1 : (int)programs_.size(); }
+     int currentProgram() const { return currentProgram_; }
+-    const char* programName(int i) const
++    virtual const char* programName(int i) const
+     {
+         if (programs_.empty()) return "Default";
+         if (i < 0 || i >= (int)programs_.size()) return "";
+         return programs_[(size_t)i].name.c_str();
+     }
+-    void setProgram(int i)
++    virtual void setProgram(int i)
+     {
+         if (programs_.empty() || i < 0 || i >= (int)programs_.size()) return;
++        StateTransaction transaction(*this, true);
+         currentProgram_ = i;
+         const Program& p = programs_[(size_t)i];
+-        for (int k = 0; k < numParams() && k < (int)p.plainValues.size(); ++k) set(k, p.plainValues[(size_t)k]);
++        for (int k = 0; k < numParams() && k < (int)p.plainValues.size(); ++k) restoreParameter(k,params_[(size_t)k].toNormalised(p.plainValues[(size_t)k]));
++        programSelected(i);
+         stateLoadPending_.store(true, std::memory_order_release);
+     }
+ 
+@@ -619,7 +645,7 @@ protected:
+     std::vector<Param> params_;
+     std::vector<std::atomic<float>*> values_;   // heap-allocated so the vector can grow during construction
+     std::vector<Program> programs_;
+-    int currentProgram_ = 0;
++    std::atomic<int> currentProgram_{0};
+     double sampleRate_ = 44100.0;
+     int blockSize_ = 128;
+     bool prepared_ = false;
+diff --git a/tools/build.py b/tools/build.py
+index cdbbe32..3a53490 100644
+--- a/tools/build.py
++++ b/tools/build.py
+@@ -375,6 +375,8 @@ class Builder:
+         flags.append("-I" + os.path.join(self.project, "src"))
+         for d in self.args.define or []:
+             flags.append("-D" + d)
++        # Local addition (Vitaleon): extra compiler flags for measured A/B builds.
++        flags += os.environ.get("MPC_EXTRA_CXXFLAGS", "").split()
+         return flags
+ 
+     def link_flags_arm(self):

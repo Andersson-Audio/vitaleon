@@ -1,0 +1,52 @@
+Vitaleon factory wavetables and factory sounds
+Copyright (c) 2026 Drey Andersson (Andersson Audio). All rights reserved.
+
+This licence covers the 32 wavetables in Content/Wavetables/Factory and the
+32 sounds in Content/Banks/Vitaleon Factory.vitalbank ("the factory content").
+It does not cover the Vitaleon program, which is free software under the
+GNU General Public License, version 3 or later.
+
+You may
+  - install the factory content and use it with Vitaleon,
+  - load it into other instruments that you use yourself, and
+  - use it in your own music and recordings, including commercial releases,
+    without paying royalties.
+
+You may not
+  - redistribute the factory content, on its own or as part of another
+    product, sound pack, preset bank, sample pack or plugin,
+  - include it in a port, fork or other build of Vitaleon or of any other
+    instrument. If you make your own port, please create your own wavetables
+    and sounds,
+  - sell, rent or sublicense it, or
+  - present it as your own work.
+
+The factory content is provided as it is, without warranty of any kind.
+
+------------------------------------------------------------------------
+
+Vitaleon Werks-Wavetables und Werkssounds
+Copyright (c) 2026 Drey Andersson (Andersson Audio). Alle Rechte vorbehalten.
+
+Diese Lizenz gilt fuer die 32 Wavetables in Content/Wavetables/Factory und
+die 32 Sounds in Content/Banks/Vitaleon Factory.vitalbank ("Werksinhalte").
+Sie gilt nicht fuer das Programm Vitaleon; das ist freie Software unter der
+GNU General Public License, Version 3 oder spaeter.
+
+Erlaubt ist,
+  - die Werksinhalte zu installieren und mit Vitaleon zu benutzen,
+  - sie in andere Instrumente zu laden, die du selbst benutzt, und
+  - sie in eigener Musik und eigenen Aufnahmen zu verwenden, auch in
+    kommerziellen Veroeffentlichungen, ohne Lizenzgebuehren.
+
+Nicht erlaubt ist,
+  - die Werksinhalte weiterzugeben, weder einzeln noch als Teil eines
+    anderen Produkts, Soundpacks, einer Preset-Bank, eines Sample-Packs
+    oder Plugins,
+  - sie in einen Port, Fork oder anderen Build von Vitaleon oder eines
+    anderen Instruments aufzunehmen. Wer einen eigenen Port macht, erstellt
+    bitte eigene Wavetables und Sounds,
+  - sie zu verkaufen, zu vermieten oder unterzulizenzieren oder
+  - sie als eigenes Werk auszugeben.
+
+Die Werksinhalte werden ohne jede Gewaehrleistung bereitgestellt.
