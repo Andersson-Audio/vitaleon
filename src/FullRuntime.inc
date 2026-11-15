@@ -7,6 +7,7 @@ inline Vitaleon::Vitaleon(){
     if(loadMessage_=="Ready")loadMessage_=assets_[0].size()>1?"Choose sound in MPC PRESET.":"No user sounds. Add banks to Content/Banks, then reopen plugin.";
     setLoadStatus(loadMessage_.find("Bank skipped:")==0?2:0);
     browserDisplayDirty_.store(false); // initial UI obtains its values on open
+    startSound_.store(!filePrograms_.empty());
     ready_=true;service_=std::thread([this]{serviceLoop();});
     try{fxThread_=std::thread([this]{fxLoop();});}catch(...){/* stay single-threaded */}
 }
@@ -36,6 +37,9 @@ inline void Vitaleon::prepare(double rate,int){
     fxWaitIdle();
     engine_->checkOversampling();warmGraph();lastTimeline_=-1;
     fxReset();fxSplit_.store(fxWanted_.load()&&fxThread_.joinable()&&engine_->canSplit());
+    // A new instance starts with the first installed sound, the one the PRESET
+    // list shows as current. A project or program that arrived first wins.
+    if(startSound_.exchange(false))programSelected(factoryProgramCount_);
 }
 inline void Vitaleon::syncFullControls(bool force,bool structural){
     for(auto& b:bindings_){if(b.structural&&!structural)continue;float value=getNormalised(b.index);
@@ -86,7 +90,7 @@ inline void Vitaleon::serviceLoop(){
                 refreshCurveControls();refreshProxies();curveSelectionChanged_.store(false);inspectCurve_.store(false);
             }
             if(fxPlanDirty_.exchange(false))planEffectBypass();
-            notifyVisuals();
+            notifyVisuals();flushSlotNotifications();
             std::this_thread::sleep_for(std::chrono::milliseconds(2));continue;
         }
         std::unique_lock<std::mutex> lifecycle(lifecycleMutex_);
@@ -223,7 +227,9 @@ inline void Vitaleon::planEffectBypass(){
 }
 inline void Vitaleon::cpuGuard(float ratio,int frames){
     cpuLoad_=.7f*cpuLoad_+.3f*ratio;guardHold_=std::max(0L,guardHold_-frames);
-    const int user=getInt(Voices);if(dynamicVoices_>user)dynamicVoices_=user;
+    // A new voice count (a loaded sound, the Voices control) applies at once; only
+    // a limit the guard itself lowered recovers slowly.
+    const int user=getInt(Voices);if(user!=guardUser_){guardUser_=user;dynamicVoices_=user;}
     const int active=engine_->getNumActiveVoices();
     if(cpuLoad_>.8f){
         calmFrames_=0;
@@ -243,7 +249,7 @@ inline void Vitaleon::parkEngine(){
     }
     fxWaitIdle(); // the effect worker may still be finishing the last chunk
 }
-inline void Vitaleon::beginStateTransaction(bool writing){lifecycleMutex_.lock();parkEngine();if(writing){pendingPreset_.store(-1);externalPresetPending_=false;programReset_.store(false);migrateOldTables_.store(false);}else {refreshLibrary();publishLoadedName();refreshHome();} }
+inline void Vitaleon::beginStateTransaction(bool writing){lifecycleMutex_.lock();parkEngine();if(writing){startSound_.store(false);pendingPreset_.store(-1);externalPresetPending_=false;programReset_.store(false);migrateOldTables_.store(false);}else {refreshLibrary();publishLoadedName();refreshHome();} }
 inline void Vitaleon::endStateTransaction(bool writing){
     // Restore remains parked until the worker has rebuilt routes and assets.
     if(writing)requestService();else gate_.store(3);
@@ -462,9 +468,12 @@ inline void Vitaleon::programSelected(int index){
         requestService();browserDisplayDirty_.store(true);
         return;
     }
-    {std::lock_guard<std::mutex> state(stateMutex_);stagedState_=Json();selectedAsset_={};loadedName_=programName(index);publishLoadedName();loadMessage_="Choose sound in MPC PRESET.";setLoadStatus(0);}
+    selectInit();
+}
+// Every control already holds its Init value; reset tables, sample and curves.
+inline void Vitaleon::selectInit(){
+    {std::lock_guard<std::mutex> state(stateMutex_);stagedState_=Json();selectedAsset_={};loadedName_="Init";publishLoadedName();loadMessage_="Init sound.";setLoadStatus(0);}
     programReset_.store(true);
-    if(index<4)migrateOldControls();
     publish(FullMode,1);
     requestService();
 }

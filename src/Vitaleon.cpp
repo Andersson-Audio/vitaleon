@@ -18,7 +18,9 @@ public:
            Attack, Decay, Sustain, Release, Filter, Spectral, Warp, Bench, Count };
     VitaleonLegacy() : mpc::Plugin(makeInfo()) {
         addParam(mpc::floatParam("volume", "Volume", -60, -6, -24, "dB", 1));
-        addParam(mpc::intParam("voices", "Voices", 1, 32, 4));
+        // At most eight voices (0.3.24, user request): more than that is beyond the MPC's
+        // processor with a full sound. A project saved with more is restored at eight.
+        addParam(mpc::intParam("voices", "Voices", 1, 8, 4));
         addParam(mpc::intParam("unison", "Unison", 1, 8, 1));
         addParam(mpc::intParam("oscillators", "Oscillators", 1, 3, 1));
         addParam(mpc::floatParam("wave_pos", "Wave Pos", 0, 3, 2, "", 2));
@@ -35,10 +37,6 @@ public:
         auto bench = mpc::boolParam("bench", "Bench", false);
         bench.automatable = false;
         addParam(bench);
-        addProgram("01 Basic", {-24,4,1,1,2,4000,.15f,8,5,200,.8f,180,1,0,.5f,0});
-        addProgram("02 Unison", {-30,4,4,1,2,6000,.2f,12,10,300,.8f,250,1,0,.5f,0});
-        addProgram("03 Three Osc", {-30,4,2,3,2.3f,3500,.2f,8,20,500,.8f,300,1,0,.5f,0});
-        addProgram("04 Spectral", {-30,4,2,2,1.5f,6000,.15f,8,15,300,.8f,220,1,1,.65f,0});
         engine_ = std::make_unique<vital::SoundEngine>();
         engine_->setStatusUpdatesEnabled(false);
         auto controls = engine_->getControls();

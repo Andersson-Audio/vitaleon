@@ -9,11 +9,14 @@ inline void Vitaleon::createNavigation(){
             if(chart=="mxtable")matrixView_=at;else if(chart=="pickgroup")pickGroupView_=at;else if(chart=="picktarget")pickTargetView_=at;}for(const auto& section:page.at("sections")){std::vector<int> row;for(const auto& item:section.at("items"))row.push_back(find(item));view.sections.push_back(std::move(row));}if(rememberedPages_[view.group]<0&&!view.hidden)rememberedPages_[view.group]=int(surfaceViews_.size());surfaceViews_.push_back(std::move(view));}
     auto integer=[&](const char* id,const char* name,int max){auto p=mpc::intParam(id,name,0,max,0);p.automatable=false;return addParam(p);};
     uiGroup_=integer("ui_group","UI Group",6);uiPage_=integer("ui_page","UI Page",int(surfaceViews_.size())-1);uiSection_=integer("ui_section","UI Section",31);
-    uiKnobs_=numParams();for(int i=0;i<16;++i){auto id="ui_knob_"+std::to_string(i),name="UI Control "+std::to_string(i+1);auto p=mpc::floatParam(id.c_str(),name.c_str(),0,1,0);p.automatable=false;addParam(p);uiTargets_[i].store(-1);}
+    uiKnobs_=numParams();for(int i=0;i<16;++i){auto id="ui_knob_"+std::to_string(i),name="UI Control "+std::to_string(i+1);auto p=mpc::floatParam(id.c_str(),name.c_str(),0,1,0);p.automatable=false;addParam(p);uiTargets_[i].store(-1);slotAutomated_[i].store(-1);}
     // Appended after every existing parameter (index 1855). A momentary trigger for
     // the PICK buttons of the matrix rows: the plugin resets it to 0 at once, so
     // the same row can be picked again (a radio button that is already lit sends nothing).
     uiPick_=integer("ui_pick","UI Pick",64);
+    // Appended (index 1856): the Q-Link group of four last turned, 0 = slots 1-4.
+    // The host does not tell a plugin which group its knobs are banked to.
+    uiBank_=integer("ui_bank","UI Bank",3);
     updateNavigation();
 }
 inline void Vitaleon::updateNavigation(){
@@ -23,6 +26,7 @@ inline void Vitaleon::updateNavigation(){
     if(v.group==4){publish(lfoSelect_,float(v.member));publish(curveTarget_,0);curveSelectionChanged_.store(true);inspectCurve_.store(true);}
     if(v.group==6&&v.member==1){publish(curveTarget_,1);curveSelectionChanged_.store(true);inspectCurve_.store(true);}
     const auto& targets=v.sections[section];for(int i=0;i<16;++i)uiTargets_[i].store(i<int(targets.size())?targets[i]:-1);
+    slotEditMs_.store(0,std::memory_order_relaxed); // other controls now: every slot shows its new target
     refreshProxies();browserDisplayDirty_.store(true);
 }
 inline bool Vitaleon::navigationChanged(int index,float plain){
@@ -36,7 +40,19 @@ inline bool Vitaleon::navigationChanged(int index,float plain){
         if(target==advancedValue_)automated=advancedTargets_[getInt(advancedSelector_)];
         if(target==effectType_)automated=effectOrder_;
         for(const auto& bank:banks_)for(size_t k=0;k<bank.proxies.size();++k)if(target==bank.proxies[k])automated=bank.targets[mpc::clamp(getInt(bank.selector)-1,0,int(bank.targets.size())-1)][k];
-        setNormalised(target,plain);if(param(automated).automatable)notifyHostParameterChanged(automated);return true;
+        // Knobs and faders on screen are bound to this very slot (0.3.22), so the
+        // host moves the control it wrote and nothing has to be redrawn. Nothing here
+        // calls into the host (0.3.23); flushSlotNotifications does that afterwards.
+        const float before=get(target);
+        setNormalised(target,plain);
+        if(param(automated).automatable)slotAutomated_[size_t(index-uiKnobs_)].store(automated,std::memory_order_relaxed);
+        // A switch or list on screen is bound to its own parameter: redraw it when it steps.
+        if(param(target).kind!=mpc::Param::Kind::Float&&get(target)!=before)slotStepped_.store(target,std::memory_order_relaxed);
+        // The frame on screen marks the four controls of the knob group in use.
+        const int bank=(index-uiKnobs_)/4;
+        if(uiBank_>=0&&getInt(uiBank_)!=bank){publish(uiBank_,float(bank));bankChanged_.store(true,std::memory_order_relaxed);}
+        slotEditMs_.store(nowMs(),std::memory_order_relaxed);
+        return true;
     }
     if(index==uiPick_){const int route=int(std::lround(plain));
         if(route>0&&matrixView_>=0&&getInt(uiPage_)==matrixView_){publish(uiPick_,0);set(routeSelect_,float(route));navigateTo(pickGroupView_,0);}
@@ -54,4 +70,28 @@ inline void Vitaleon::navigateTo(int page,int section){
     if(page<0||uiPage_<0)return;
     std::lock_guard<std::mutex> lock(navigationMutex_);publish(uiPage_,float(page));publish(uiSection_,float(section));updateNavigation();
 }
-inline void Vitaleon::refreshNavigation(){if(uiKnobs_>=0)for(int i=0;i<16;++i){int target=uiTargets_[i].load();publishNormalised(uiKnobs_+i,target>=0?getNormalised(target):0);}}
+inline void Vitaleon::refreshNavigation(){
+    if(uiKnobs_<0)return;
+    const bool moving=slotEditMs_.load(std::memory_order_relaxed)!=0;
+    for(int i=0;i<16;++i){int target=uiTargets_[i].load();
+        if(target<0){publishNormalised(uiKnobs_+i,0);continue;}
+        // While it moves, a stepped target keeps the knob's own position inside its
+        // step: writing the step's value back would undo the small increments of a
+        // turning Q-Link. At rest, and after a page change, the slot shows the target.
+        const auto& t=param(target);
+        if(moving&&t.kind!=mpc::Param::Kind::Float&&t.toPlain(getNormalised(uiKnobs_+i))==get(target))continue;
+        publishNormalised(uiKnobs_+i,getNormalised(target));}
+}
+// Service thread, no lock held. See slotAutomated_.
+inline void Vitaleon::flushSlotNotifications(){
+    if(uiKnobs_<0)return;
+    const int stepped=slotStepped_.exchange(-1,std::memory_order_relaxed);if(stepped>=0)notifyHostParameterChanged(stepped);
+    // One parameter, not the page: the frame follows at once where the host redraws
+    // on this call; the page redraw at rest covers a host that does not.
+    if(bankChanged_.exchange(false,std::memory_order_relaxed)){notifyHostParameterChanged(uiBank_);bankRedraw_.store(true,std::memory_order_relaxed);}
+    const long long last=slotEditMs_.load(std::memory_order_relaxed);
+    if(last==0||nowMs()-last<kSlotRestMs)return;
+    for(auto& slot:slotAutomated_){const int sound=slot.exchange(-1,std::memory_order_relaxed);if(sound>=0)notifyHostParameterChanged(sound);}
+    if(bankRedraw_.exchange(false,std::memory_order_relaxed))requestDisplayUpdate();
+    long long expected=last;slotEditMs_.compare_exchange_strong(expected,0,std::memory_order_relaxed);
+}

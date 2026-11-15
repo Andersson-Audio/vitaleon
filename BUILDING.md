@@ -42,7 +42,7 @@ All from `plugins/Vitaleon`. They need a C++17 `clang++` or `g++` and Python 3 w
 
 ## Content
 
-A build made from this repository has an empty `Content` folder apart from short notes: the factory wavetables and sounds of the official release are not part of the source and may not be redistributed (see [FACTORY-CONTENT-LICENSE.txt](FACTORY-CONTENT-LICENSE.txt)). The plugin works without them; it starts with its eight built-in sounds and loads any Vital preset, bank or wavetable you add.
+A build made from this repository has an empty `Content` folder apart from short notes: the factory wavetables and sounds of the official release are not part of the source and may not be redistributed (see [FACTORY-CONTENT-LICENSE.txt](FACTORY-CONTENT-LICENSE.txt)). The plugin works without them; it starts with one sound named Init and loads any Vital preset, bank or wavetable you add.
 
 ## The skin
 

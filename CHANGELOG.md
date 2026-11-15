@@ -2,6 +2,32 @@
 
 Device results refer to an MPC Live II with MPC OS 3.10.1.
 
+## 0.3.24
+
+- The voice control ends at eight voices (was 32).
+
+## 0.3.23
+
+- Controls respond directly again. While a control moves, the plugin no longer calls into the MPC; 0.3.22 did so on every movement and the controls felt sluggish on the device.
+- Small Q-Link turns on a control with fixed steps (voices, lists) add up instead of being lost.
+
+## 0.3.22
+
+- Knobs and faders follow the Q-Links smoothly. They are now bound to the Q-Link slots themselves, so the MPC moves the control that its knob writes.
+- A frame marks the four controls that the Q-Links currently reach. It follows the knob group turned last.
+- Removed the display refresh of 0.3.21: on the device it made every control stutter.
+
+## 0.3.21
+
+- Not released. It refreshed the whole display after every Q-Link move, which made the controls stutter on the device.
+
+## 0.3.20
+
+- The PRESET list holds the installed sounds and nothing else. The eight basic built-in sounds are gone.
+- A new instance starts with the first sound of the list loaded.
+- A plugin without any installed sound (a build from source) has one sound named Init.
+- A sound with more voices than the one before gets all its voices at once. Before, the voice limit rose over several seconds.
+
 ## 0.3.19
 
 - Library page reworked. Removable drives are listed right after Plugin Content. Rows show kind, name and one button: OPEN for a drive, folder or bank, LOAD for a sound.

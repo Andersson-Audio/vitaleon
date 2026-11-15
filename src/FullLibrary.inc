@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Fixed native touch rows backed by the runtime Content index. No generated list
-// of factory filenames: each instance discovers the user's banks on its drive.
+// of factory filenames: each instance discovers the banks on its drive.
 inline void Vitaleon::createFilePrograms(){
     // createEffect reads numPrograms only once, after the constructor returns.
     // Enumerate the bank index now, but decompress/render only the chosen sound.
-    factoryProgramCount_=numPrograms();
+    factoryProgramCount_=assets_[0].size()<=1?1:0;
     std::set<std::string> used;
     for(int p=0;p<factoryProgramCount_;++p)used.insert(programName(p));
     auto shortName=[](const std::string& text,size_t limit){
@@ -97,6 +97,6 @@ inline bool Vitaleon::formatLibrary(int index,std::string& out){
     if(index>=libraryBankText_&&index<libraryBankText_+2){out=textPart(libraryBanks_[mpc::clamp(getInt(libraryBank_),0,int(libraryBanks_.size())-1)].name,index-libraryBankText_);return true;}
     if(index>=librarySelectedText_&&index<librarySelectedText_+2){int file=mpc::clamp(getInt(presetSelect_),0,int(assets_[0].size())-1);out=textPart(file?assets_[0][file].name:"Select a sound in the list",index-librarySelectedText_);return true;}
     if(index>=libraryLoadedText_&&index<libraryLoadedText_+2){std::lock_guard<std::mutex> lock(stateMutex_);out=textPart(loadedName_,index-libraryLoadedText_);return true;}
-    if(index==libraryPageText_){out=std::to_string(factoryProgramCount_)+" built-in + "+std::to_string(filePrograms_.size())+" user sounds";return true;}
+    if(index==libraryPageText_){out=std::to_string(filePrograms_.size())+" installed sounds";return true;}
     return false;
 }

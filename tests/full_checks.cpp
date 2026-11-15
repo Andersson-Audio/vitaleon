@@ -13,11 +13,12 @@ static std::atomic<size_t> selectedCache{0},loadedCache{0};
 static std::atomic<bool> displayOnAudio{false};
 static std::atomic<int> automatedTarget{-1};
 static std::atomic<unsigned> readoutUpdates{0};
+static std::atomic<unsigned> automateCalls{0}; // every audioMasterAutomate, whatever the parameter
 static std::atomic<int> cachedProgramCount{0};
 static std::atomic<bool> validReentrantNames{true};
 static AEffect displayEffect{};
 static VstIntPtr displayHost(AEffect* effect,VstInt32 opcode,VstInt32 index,VstIntPtr,void*,float){
- if(opcode==audioMasterAutomate){if(static_cast<mpc::Plugin*>(effect->object)->param(index).automatable)automatedTarget.store(index);else readoutUpdates.fetch_add(1);}
+ if(opcode==audioMasterAutomate){automateCalls.fetch_add(1);if(static_cast<mpc::Plugin*>(effect->object)->param(index).automatable)automatedTarget.store(index);else readoutUpdates.fetch_add(1);}
  if(opcode==audioMasterUpdateDisplay){
   if(audit)displayOnAudio.store(true);
   auto* plugin=static_cast<mpc::Plugin*>(effect->object);
@@ -44,7 +45,7 @@ int main(int argc,char** argv){
   float l[512]{},r[512]{};float* out[]={l,r};int loaded=0,rejected=0,failed=0;std::set<std::string> names;
   int status=-1;for(int i=0;i<p->numParams();++i)if(p->param(i).id=="load_status")status=i;
   std::cout<<"native_program_count="<<e->numPrograms<<std::endl;
-  for(int i=0;i<e->numPrograms;++i){char name[256]{};d(effGetProgramNameIndexed,i,0,name);std::string text=name;if(!names.insert(text).second||text.size()>24)++failed;try{nlohmann::json(text).dump();}catch(...){++failed;}if(i<8)continue;
+  for(int i=0;i<e->numPrograms;++i){char name[256]{};d(effGetProgramNameIndexed,i,0,name);std::string text=name;if(!names.insert(text).second||text.size()>24)++failed;try{nlohmann::json(text).dump();}catch(...){++failed;}
    d(effSetProgram,0,i);for(int n=0;n<30000&&p->busy();++n){e->processReplacing(e,nullptr,out,128);std::this_thread::sleep_for(std::chrono::milliseconds(1));}
    if(p->busy()){++failed;std::cout<<"FAIL timeout "<<text<<std::endl;continue;}
    if(p->getInt(status)==2){++rejected;std::cout<<"REJECTED "<<text<<" : "<<p->displayText(status)<<std::endl;continue;}
@@ -55,6 +56,24 @@ int main(int argc,char** argv){
   std::cout<<"loaded="<<loaded<<" rejected="<<rejected<<" failed="<<failed<<std::endl;d(effMainsChanged,0,0);d(effClose);return failed||!loaded?1:0;
  }
  int failures=0;auto check=[&](bool ok,const std::string& name){std::cout<<(ok?"PASS ":"FAIL ")<<name<<std::endl;if(!ok)++failures;};
+ if(argc>1&&std::string(argv[1])=="--no-content"){
+  // A plugin without any installed sound (a build from source): one "Init" program.
+  AEffect* e=VSTPluginMain(displayHost);auto* p=static_cast<Vitaleon*>(e->object);
+  auto d=[&](int op,int ix=0,VstIntPtr val=0,void* ptr=nullptr,float opt=0){return e->dispatcher(e,op,ix,val,ptr,opt);};
+  d(effOpen);d(effSetSampleRate,0,0,nullptr,44100);d(effSetBlockSize,0,512);d(effMainsChanged,0,1);
+  float l[512]{},r[512]{};float* out[]={l,r};char name[256]{};d(effGetProgramNameIndexed,0,0,name);
+  auto wait=[&]{for(int n=0;n<10000&&p->busy();++n){e->processReplacing(e,nullptr,out,128);std::this_thread::sleep_for(std::chrono::milliseconds(1));}};
+  auto energy=[&]{VstMidiEvent note{};note.type=kVstMidiType;note.byteSize=sizeof(note);note.midiData[0]=char(0x90);note.midiData[1]=60;note.midiData[2]=100;VstEvents events{};events.numEvents=1;events.events[0]=reinterpret_cast<VstEvent*>(&note);d(effProcessEvents,0,0,&events);
+   double sum=0;for(int n=0;n<80;++n){e->processReplacing(e,nullptr,out,128);for(int j=0;j<128;++j)sum+=l[j]*l[j]+r[j]*r[j];}return sum;};
+  wait();check(e->numPrograms==1&&std::string(name)=="Init"&&d(effGetProgram)==0,"plugin without sounds offers exactly one Init program");
+  // The Init state of every parameter, for tools/generate_surface.py (tools/init-values.json).
+  if(argc>2){nlohmann::json values=nlohmann::json::array();for(int i=0;i<p->numParams();++i)values.push_back({{"index",i},{"name",p->param(i).name},{"value",p->getNormalised(i)},{"display",p->displayText(i)}});std::ofstream file(argv[2]);file<<values.dump(1);}
+  check(energy()>1e-6,"plugin without sounds plays its default sound");
+  int cutoff=p->controlIndex("filter_1_cutoff");float before=p->get(cutoff);p->set(cutoff,before==20?30.0f:20.0f);d(effSetProgram,0,0);wait();
+  int loaded=-1;for(int i=0;i<p->numParams();++i)if(p->param(i).id=="library_loaded_0")loaded=i;
+  check(p->get(cutoff)==before&&p->displayText(loaded)=="Init"&&energy()>1e-6,"selecting Init resets the controls and still plays");
+  d(effMainsChanged,0,0);d(effClose);return failures?1:0;
+ }
  {
   vital::Wavetable oldPath(257),prepared(257),target(257);
   WavetableCreator a(&oldPath);a.initPredefinedWaves();auto json=a.stateToJson();a.jsonToState(json);a.render();
@@ -87,7 +106,8 @@ int main(int argc,char** argv){
   ok=std::abs(trigger(lfo))<1e-5&&std::abs(trigger(lfo)-.25f)<1e-5&&std::abs(trigger(lfo))<1e-5;
   check(ok,"Point Cycle skips duplicate-time segments");
  }
- auto synth=std::make_unique<Vitaleon>();synth->prepare(44100,512);
+ // The engine checks start from the Init state; the start sound is checked through the VST entry point below.
+ auto synth=std::make_unique<Vitaleon>();synth->testNoStartSound();synth->prepare(44100,512);
  displayEffect.object=synth.get();synth->effect_=&displayEffect;synth->host_=displayHost;
  auto id=[&](const std::string& name){for(int i=0;i<synth->numParams();++i)if(synth->param(i).id==name)return i;throw std::runtime_error("Missing parameter "+name);};
  float left[512]{},right[512]{};float* outputs[]={left,right};mpc::ProcessContext ctx;ctx.outputs=outputs;ctx.numOutputs=2;ctx.numFrames=128;
@@ -126,7 +146,7 @@ int main(int argc,char** argv){
  auto saved=synth->internalSaveState();float sustain=synth->get(synth->controlIndex("env_3_sustain"));synth->set(synth->controlIndex("env_3_sustain"),.9f);check(synth->internalLoadState(saved.data(),saved.size()),"state parser accepts saved chunk");settle();check(std::abs(synth->get(synth->controlIndex("env_3_sustain"))-sustain)<1e-6,"canonical state round trip");
  auto savedAssets=synth->testAssets();check(!synth->internalLoadState(saved.data(),saved.size()-10),"truncated chunk rejected");check(synth->get(synth->controlIndex("env_3_sustain"))==sustain,"invalid chunk leaves parameters unchanged");
  check(savedAssets.count("sample")&&savedAssets["sample"].count("samples"),"default sample embedded in project state");
- for(int turn=0;turn<6;++turn){synth->setProgram(turn%2?4:6);settle();check(synth->internalLoadState(saved.data(),saved.size()),"project restores across program changes");settle();check(synth->testAssets()==savedAssets,"embedded tables, sample and curves restored exactly");}
+ for(int turn=0;turn<6;++turn){synth->testInit();if(turn%2)synth->set(synth->controlIndex("osc_2_on"),1);settle();check(synth->internalLoadState(saved.data(),saved.size()),"project restores across sound changes");settle();check(synth->testAssets()==savedAssets,"embedded tables, sample and curves restored exactly");}
  nlohmann::json invalid={{"synth_version","1.0.6"},{"settings",savedAssets}};invalid["settings"]["env_3_sustain"]=.99f;invalid["settings"]["lfos"][0]["num_points"]=101;
  bool rejected=false;try{synth->testImport(invalid);}catch(const std::exception&){rejected=true;}
  check(rejected&&synth->get(synth->controlIndex("env_3_sustain"))==sustain,"invalid preset rejected before changing sound parameters");
@@ -182,8 +202,8 @@ int main(int argc,char** argv){
  if(argc>3){
   int selector=id("preset_select");auto chooseFile=[&](const std::string& name){for(int n=1;n<=int(synth->param(selector).max);++n){std::string label;synth->formatValue(selector,float(n),label);if(label==name){synth->set(selector,float(n));synth->set(id("library_load"),synth->getBool(id("library_load"))?0:1);settle();return true;}}return false;};
   auto tap=[&](const std::string& name){int p=id(name);synth->set(p,synth->getBool(p)?0:1);};
-  synth->setProgram(0);settle();
-  check(synth->getBool(Vitaleon::FullMode),"original built-in programs now use the single full engine");
+  synth->testInit();settle();
+  check(synth->getBool(Vitaleon::FullMode)&&synth->displayText(id("library_loaded_0"))=="Init","Init sound uses the single full engine");
   synth->setNormalised(id("home_1"),.5f);synth->setNormalised(id("home_5"),1);
   check(std::abs(synth->getNormalised(synth->controlIndex("filter_1_cutoff"))-.5f)<1e-5&&synth->getInt(synth->controlIndex("osc_1_unison_voices"))==16,"overview controls always use full-engine parameters and ranges");
   tap("library_row_0");
@@ -207,7 +227,7 @@ int main(int argc,char** argv){
   synth->set(synth->controlIndex("filter_1_cutoff"),23);tap("library_load");settle();check(synth->get(synth->controlIndex("filter_1_cutoff"))==77,"LOAD reloads same preset after edits");
   auto beforeBlank=synth->getInt(selector);tap("library_row_5");check(synth->getInt(selector)==beforeBlank,"empty row cannot select or load another sound");
   if(argc>2){nlohmann::json values=nlohmann::json::array();for(int i=0;i<synth->numParams();++i)values.push_back({{"id",synth->param(i).id},{"name",synth->param(i).name},{"index",i},{"value",synth->getNormalised(i)},{"display",synth->displayText(i)}});std::ofstream file(std::string(argv[2])+"-library.json");file<<values.dump(2);}
-  auto loadedState=synth->internalSaveState();synth->setProgram(0);settle();check(synth->internalLoadState(loadedState.data(),loadedState.size()),"imported state accepted");settle();check(synth->displayText(id("library_loaded_0"))=="02 Bank Test"&&synth->get(synth->controlIndex("filter_1_cutoff"))==77,"loaded filename and sound survive project restore");
+  auto loadedState=synth->internalSaveState();synth->testInit();settle();check(synth->internalLoadState(loadedState.data(),loadedState.size()),"imported state accepted");settle();check(synth->displayText(id("library_loaded_0"))=="02 Bank Test"&&synth->get(synth->controlIndex("filter_1_cutoff"))==77,"loaded filename and sound survive project restore");
  }
  if(argc>4){
   nlohmann::json skin;std::ifstream input(argv[4]);input>>skin;
@@ -220,11 +240,11 @@ int main(int argc,char** argv){
   check(!browserCommands,"failed custom SELECT/LOAD browser is absent from the shipped skin");
  }
  // Verify audible filter action, rather than checking only the displayed value.
- // Both HOME and FILTER 1 use the same parameter handles in all programs.
- for(bool fullMode:{false,true}){
-  synth->setProgram(fullMode?4:2);settle();
+ // Both HOME and FILTER 1 use the same parameter handles.
+ {
+  synth->testInit();settle();
   synth->set(id("home_filter_on"),1);
-  if(fullMode){synth->set(synth->controlIndex("osc_1_wave_frame"),170);synth->set(synth->controlIndex("env_1_sustain"),1);}
+  synth->set(synth->controlIndex("osc_1_wave_frame"),170);synth->set(synth->controlIndex("env_1_sustain"),1);
   auto energy=[&](float cutoff,bool enabled){
    synth->set(id("home_filter_on"),enabled?1:0);synth->setNormalised(id("home_1"),cutoff);
    synth->reset();auto note=mpc::MidiEvent::noteOn(0,60,100);ctx.midi=&note;ctx.numMidiEvents=1;render();ctx.numMidiEvents=0;
@@ -232,8 +252,8 @@ int main(int argc,char** argv){
    ctx.midi=notes.data();return e;
   };
   double low=energy(.08f,true),high=energy(.9f,true),bypass=energy(.08f,false);
-  std::cout<<"filter_audio_program="<<(fullMode?"Full Init":"Three Osc")<<" low="<<low<<" high="<<high<<" bypass="<<bypass<<std::endl;
-  check(high>low*4&&high>1e-8&&bypass>low*4,fullMode?"Full Init HOME/FILTER 1 cutoff changes rendered audio; bypass is explicit":"Three Osc HOME/FILTER 1 cutoff changes rendered audio; bypass is explicit");
+  std::cout<<"filter_audio_program=Init low="<<low<<" high="<<high<<" bypass="<<bypass<<std::endl;
+  check(high>low*4&&high>1e-8&&bypass>low*4,"Init HOME/FILTER 1 cutoff changes rendered audio; bypass is explicit");
  }
  auto legacy=std::make_unique<VitaleonLegacy>();legacy->set(Vitaleon::Cutoff,812.5f);legacy->set(Vitaleon::Unison,8);auto oldState=legacy->internalSaveState();
  check(synth->internalLoadState(oldState.data(),oldState.size()),"0.1.4 state accepted");settle();
@@ -242,7 +262,7 @@ int main(int argc,char** argv){
  // Freeze telemetry for byte-exact serialization: settle() processes audio,
  // and its scheduling can otherwise change only the live waveform readouts.
  synth->set(id("visuals"),0);
- auto converted=synth->internalSaveState();auto convertedAssets=synth->testAssets();synth->setProgram(4);settle();
+ auto converted=synth->internalSaveState();auto convertedAssets=synth->testAssets();synth->testInit();settle();
  check(synth->internalLoadState(converted.data(),converted.size()),"converted project reload accepted");settle();
  auto convertedAgain=synth->internalSaveState();
  if(convertedAgain!=converted&&argc>2){std::ofstream a(std::string(argv[2])+".state-before",std::ios::binary),b(std::string(argv[2])+".state-after",std::ios::binary);a.write(reinterpret_cast<const char*>(converted.data()),converted.size());b.write(reinterpret_cast<const char*>(convertedAgain.data()),convertedAgain.size());}
@@ -252,7 +272,7 @@ int main(int argc,char** argv){
  check(synth->internalLoadState(oldExpanded.data(),oldExpanded.size()),"expanded old-mode project accepted");settle();
  check(synth->getBool(Vitaleon::FullMode)&&std::abs(vital::utils::midiNoteToFrequency(synth->get(synth->controlIndex("filter_1_cutoff")))-812.5f)<.1f,"0.2.x old-mode flag triggers conversion rather than an inactive UI");
  synth->set(Vitaleon::FullMode,0);check(synth->getBool(Vitaleon::FullMode),"retired mode parameter cannot reactivate a second engine");
- for(int program=0;program<8;++program){synth->setProgram(program);settle();check(synth->getBool(Vitaleon::FullMode),"all eight programs use one engine");}
+ synth->testInit();settle();check(synth->getBool(Vitaleon::FullMode),"Init after a converted project uses the one engine");
  // Exercise the exported entry point and real VST dispatcher used by the
  // host's PRESET dropdown, independently of the retired custom browser.
  if(argc>3){
@@ -263,10 +283,13 @@ int main(int argc,char** argv){
   auto waitNative=[&]{for(int i=0;i<10000&&native->busy();++i){effect->processReplacing(effect,nullptr,outputs,128);std::this_thread::sleep_for(std::chrono::milliseconds(1));}check(!native->busy(),"native program service settled");};
   int loose=-1,bank=-1,secondBank=-1,unsupported=-1;std::set<std::string> names;bool validNames=true;
   for(int p=0;p<effect->numPrograms;++p){char name[256]{};validNames&=dispatch(effGetProgramNameIndexed,p,0,name)==1;std::string text=name;validNames&=!text.empty()&&text.size()<=24&&names.insert(text).second;nlohmann::json utf8=text;try{utf8.dump();}catch(...){validNames=false;}if(text=="01 Import Test")loose=p;if(text=="02 Bank Test")bank=p;if(text=="03 Unsupported")unsupported=p;if(text=="02 Bank Test #2")secondBank=p;}
-  check(effect->numPrograms==19&&loose>=8&&bank>=8&&secondBank>=8&&unsupported>=8,"VST entry point exposes eight built-ins plus eleven sounds from two banks and loose files");
-  check(validNames&&dispatch(effGetProgram)==0,"native program enumeration has unique valid names and does not select sounds");
+  check(effect->numPrograms==11&&loose==0&&bank>0&&secondBank>0&&unsupported>0,"VST entry point exposes exactly the eleven sounds from two banks and loose files, no built-in programs");
+  check(validNames&&dispatch(effGetProgram)==0,"native program enumeration has unique valid names and keeps the first sound current");
   auto select=[&](int p){dispatch(effSetProgram,0,p);waitNative();};
   int cutoff=native->controlIndex("filter_1_cutoff");
+  {waitNative();char started[256]{};dispatch(effGetProgramName,0,0,started);
+   check(native->get(cutoff)==60&&dispatch(effGetProgram)==0&&std::string(started)=="01 Import Test"&&native->displayText(id("library_loaded_0"))=="01 Import Test","a new instance starts with the first installed sound loaded");
+   check(native->displayText(id("library_page_text"))=="11 installed sounds","library names the number of installed sounds");}
   select(bank);char current[256]{};dispatch(effGetProgramName,0,0,current);
   check(native->get(cutoff)==77&&dispatch(effGetProgram)==bank&&std::string(current)=="02 Bank Test","native PRESET selection loads compressed bank and reports current program");
   select(secondBank);check(native->get(cutoff)==88&&native->displayText(id("library_bank_text_0"))=="Second Bank","second bank with duplicate sound name selects correct archive");
@@ -280,7 +303,7 @@ int main(int argc,char** argv){
   dispatch(effSetProgram,0,loose);dispatch(effSetChunk,0,edited.size(),edited.data());waitNative();
   if(std::abs(native->get(cutoff)-42)>=1e-4||native->testAssets()!=bankAssets||native->displayText(id("library_loaded_0"))!="02 Bank Test")std::cout<<"RESTORE DETAIL cutoff="<<native->get(cutoff)<<" name="<<native->displayText(id("library_loaded_0"))<<" status="<<native->displayText(id("load_status"))<<" diff="<<nlohmann::json::diff(bankAssets,native->testAssets()).dump()<<std::endl;
   check(std::abs(native->get(cutoff)-42)<1e-4&&native->testAssets()==bankAssets&&native->displayText(id("library_loaded_0"))=="02 Bank Test","project chunk overrides pending native selection and restores edited bank sound");
-  select(4);check(native->get(cutoff)!=42,"native built-in selection replaces imported sound");select(bank);check(native->get(cutoff)==77,"native bank loads again after built-in program");
+  native->testInit();waitNative();check(native->get(cutoff)!=42&&native->displayText(id("library_loaded_0"))=="Init","Init replaces imported sound");select(bank);check(native->get(cutoff)==77,"native bank loads again after Init");
   bool audioFinite=true;for(int i=0;i<40;++i){effect->processReplacing(effect,nullptr,outputs,128);for(int n=0;n<128;++n)audioFinite&=std::isfinite(left[n])&&std::isfinite(right[n]);}check(audioFinite,"native VST processReplacing stays finite across program changes");
   check(displayUpdates.load()>0&&!displayOnAudio.load(),"host display invalidation is reentrant and stays off the audio callback");
   // Drive the real browser command parameters and actual exported program table.
@@ -294,24 +317,24 @@ int main(int argc,char** argv){
   command(0);check(openItem("Plugin Content")&&openItem("Storage Tests"),"storage browser navigates drive and directory through UI command parameters");
   float unchanged=native->get(cutoff);
   check(openItem("A small"),"browser opens external bank outside Content/Banks");
-  check(native->get(cutoff)==unchanged&&effect->numPrograms>=9&&effect->numPrograms<=10,"bank indexing publishes names without changing sounding parameters");
-  char externalName[256]{};dispatch(effGetProgramNameIndexed,8,0,externalName);
+  check(native->get(cutoff)==unchanged&&effect->numPrograms>=1&&effect->numPrograms<=2,"bank indexing publishes names without changing sounding parameters");
+  char externalName[256]{};dispatch(effGetProgramNameIndexed,0,0,externalName);
   check(std::string(externalName)=="Same name","selected bank sounds appear in native PRESET program names");
-  select(8);check(native->get(cutoff)==31,"native PRESET loads selected external bank");
+  select(0);check(native->get(cutoff)==31,"native PRESET loads selected external bank");
   command(3);check(openItem("B large"),"browser selects larger bank");
-  check(effect->numPrograms==12&&native->get(cutoff)==31,"larger bank refresh preserves current sound in a valid retained slot");
+  check(effect->numPrograms==4&&native->get(cutoff)==31,"larger bank refresh preserves current sound in a valid retained slot");
   for(int n=0;n<1000&&cachedProgramCount.load()!=effect->numPrograms;++n)std::this_thread::sleep_for(std::chrono::milliseconds(1));
-  check(cachedProgramCount.load()==12&&validReentrantNames.load(),"host refresh callback reentrantly reads the new program count and all names");
-  select(10);check(native->get(cutoff)==73,"larger bank last sound reaches correct archive entry");
+  check(cachedProgramCount.load()==4&&validReentrantNames.load(),"host refresh callback reentrantly reads the new program count and all names");
+  select(2);check(native->get(cutoff)==73,"larger bank last sound reaches correct archive entry");
   command(3);check(openItem("C same size"),"browser selects smaller bank");
-  check(effect->numPrograms==10&&dispatch(effGetProgramNameIndexed,10,0,externalName)==0,"smaller bank removes stale names and rejects removed program indices");
-  select(8);check(native->get(cutoff)==81,"same preset filename in different bank loads correct sound");
+  check(effect->numPrograms==2&&dispatch(effGetProgramNameIndexed,2,0,externalName)==0,"smaller bank removes stale names and rejects removed program indices");
+  select(0);check(native->get(cutoff)==81,"same preset filename in different bank loads correct sound");
   void* bankChunk=nullptr;auto bankBytes=dispatch(effGetChunk,0,0,&bankChunk);std::vector<uint8_t> savedBank((uint8_t*)bankChunk,(uint8_t*)bankChunk+bankBytes);
-  command(3);openItem("D empty");check(native->get(cutoff)==81&&effect->numPrograms==10,"empty bank preserves current catalog and sound");
-  command(3);openItem("E broken");check(native->get(cutoff)==81&&effect->numPrograms==10,"malformed bank preserves current catalog and sound");
-  command(3);openItem("A small");select(8);check(native->get(cutoff)==31,"external bank A/B/A switching is stable");
+  command(3);openItem("D empty");check(native->get(cutoff)==81&&effect->numPrograms==2,"empty bank preserves current catalog and sound");
+  command(3);openItem("E broken");check(native->get(cutoff)==81&&effect->numPrograms==2,"malformed bank preserves current catalog and sound");
+  command(3);openItem("A small");select(0);check(native->get(cutoff)==31,"external bank A/B/A switching is stable");
   dispatch(effSetChunk,0,savedBank.size(),savedBank.data());waitNative();
-  check(native->get(cutoff)==81&&native->displayText(id("active_bank_0"))=="C same size"&&dispatch(effGetProgram)==8,"project restore recovers bank identity and current native slot");
+  check(native->get(cutoff)==81&&native->displayText(id("active_bank_0"))=="C same size"&&dispatch(effGetProgram)==0,"project restore recovers bank identity and current native slot");
   auto removed=std::filesystem::path(argv[3])/"Content/Storage Tests/C same size.vitalbank";
   auto heldPath=removed;heldPath+=".test-unavailable";std::filesystem::rename(removed,heldPath);
   dispatch(effSetChunk,0,savedBank.size(),savedBank.data());waitNative();
@@ -321,7 +344,7 @@ int main(int argc,char** argv){
    char retainedName[256]{};fresh->dispatcher(fresh,effGetProgramName,0,0,retainedName,0);
    check(!instance->busy()&&instance->get(cutoff)==81&&std::string(retainedName)=="[Current sound]","fresh instance restores missing-bank project into a valid current-sound slot");fresh->dispatcher(fresh,effClose,0,0,nullptr,0);}
   std::filesystem::rename(heldPath,removed);
-  command(5);check(effect->numPrograms==20&&native->get(cutoff)==81,"Installed banks returns original catalog while retaining external sound");
+  command(5);check(effect->numPrograms==12&&native->get(cutoff)==81,"Installed banks returns original catalog while retaining external sound");
   command(0);check(!native->displayText(id("storage_row_0")).empty(),"Drives rescans storage roots");
   openItem("Plugin Content");openItem("Storage Tests");openItem("Folder 0");bool emptyRows=true;for(int row=0;row<6;++row)emptyRows&=native->getNormalised(id("storage_available_"+std::to_string(row)))==0;
   check(emptyRows,"empty folder hides all six OPEN buttons and keeps navigation available");command(0);
@@ -356,14 +379,55 @@ int main(int argc,char** argv){
   native->set(id("ui_page"),8);native->set(id("ui_section"),0);native->setNormalised(id("ui_knob_0"),.37f);check(std::abs(native->getNormalised(cutoff)-.37f)<1e-6,"filter cutoff Q-Link writes the actual full-engine filter");
   native->set(id("ui_page"),15);native->setNormalised(id("ui_knob_0"),.4f);check(std::abs(native->getNormalised(native->controlIndex("env_6_attack"))-.4f)<1e-6,"Envelope 6 view edits Envelope 6 through Q-Link");
   native->set(id("ui_page"),23);native->setNormalised(id("ui_knob_0"),.6f);check(std::abs(native->getNormalised(native->controlIndex("lfo_8_frequency"))-.6f)<1e-6,"LFO 8 view edits LFO 8 through Q-Link");
-  check(automatedTarget.load()==native->controlIndex("lfo_8_frequency"),"Q-Link automation reports stable LFO 8 parameter rather than navigation proxy");
+  // The sound parameter is announced once the control rests (0.3.23), not while it moves.
+  for(int i=0;i<1000&&!native->testSlotsAtRest();++i){effect->processReplacing(effect,nullptr,outputs,128);std::this_thread::sleep_for(std::chrono::milliseconds(2));}
+  check(native->testSlotsAtRest()&&automatedTarget.load()==native->controlIndex("lfo_8_frequency"),"Q-Link automation reports stable LFO 8 parameter rather than navigation proxy");
+  // 0.3.22: knobs and faders on screen are bound to their Q-Link slot, so the host moves
+  // the control it wrote. 0.3.23: while a control moves, the plugin calls the host not
+  // once (0.3.21 redrew the page on every change and all controls stuttered; 0.3.22 sent
+  // audioMasterAutomate on every change and the controls felt sluggish on the device).
+  {native->set(id("visuals"),0);native->set(id("ui_page"),0);native->set(id("ui_section"),0);
+   auto idle=[&](int blocks){for(int i=0;i<blocks;++i){effect->processReplacing(effect,nullptr,outputs,128);std::this_thread::sleep_for(std::chrono::milliseconds(2));}};
+   auto rest=[&]{for(int i=0;i<1000&&!native->testSlotsAtRest();++i)idle(1);idle(20);};
+   auto named=[&](const std::string& name){for(int p=0;p<native->numParams();++p)if(native->param(p).name==name)return p;return -1;};
+   int knob=id("ui_knob_0"),sound=id("home_0"),volume=native->controlIndex("volume");effect->setParameter(effect,knob,.5f);rest();
+   unsigned shown=displayUpdates.load(),calls=automateCalls.load();float turned=.8f;automatedTarget.store(-1);
+   for(int step=1;step<=20;++step){effect->setParameter(effect,knob,.5f+step*.015f);idle(2);}
+   check(displayUpdates.load()==shown&&automateCalls.load()==calls,"a moving control makes no call into the host");
+   check(std::abs(native->getNormalised(sound)-turned)<1e-5&&std::abs(effect->getParameter(effect,knob)-turned)<1e-5,"a Q-Link turn reaches the sound and the slot keeps the value the host wrote");
+   rest();
+   check(automateCalls.load()==calls+1&&automatedTarget.load()==volume&&displayUpdates.load()==shown,"a rested control announces its sound parameter once, without a page redraw");
+   check(native->getInt(id("ui_bank"))==0,"the first four Q-Links are group 1");
+   // Another knob group: the frame parameter is announced at once, the page redrawn at rest.
+   unsigned framed=readoutUpdates.load();shown=displayUpdates.load();
+   for(int step=0;step<10;++step){effect->setParameter(effect,id("ui_knob_5"),.3f+step*.01f);idle(2);}
+   check(native->getInt(id("ui_bank"))==1&&readoutUpdates.load()==framed+1&&displayUpdates.load()==shown,"a knob of the second group moves the Q-Link frame without a page redraw while it turns");
+   rest();check(displayUpdates.load()==shown+1,"the page is redrawn once after the knob group changed and the control rests");
+   effect->setParameter(effect,knob,turned);rest();check(native->getInt(id("ui_bank"))==0,"a knob of the first group moves the frame back");
+   // Small Q-Link increments on a stepped control add up instead of snapping back to the step.
+   {int voices=named("Voices"),slot=id("ui_knob_1");native->set(voices,4);idle(10);float start=effect->getParameter(effect,slot);int count=native->getInt(voices);
+    for(int step=1;step<=24;++step){effect->setParameter(effect,slot,effect->getParameter(effect,slot)+.004f);idle(3);}
+    check(std::abs(effect->getParameter(effect,slot)-(start+.096f))<1e-4&&native->getInt(voices)==count+1,"small Q-Link increments on a stepped control add up");rest();
+    // 0.3.24: the voice control ends at eight, also for a project saved with more.
+    effect->setParameter(effect,voices,1.0f);check(native->getInt(voices)==8&&native->param(voices).max==8,"the voice control ends at eight voices");
+    {native->set(voices,3);rest();auto saved=native->internalSaveState();std::vector<uint8_t> chunk(saved.begin(),saved.end());
+     const std::string key=std::string(1,char(6))+"voices";auto at=std::search(chunk.begin(),chunk.end(),key.begin(),key.end());bool found=at!=chunk.end();
+     if(found){size_t pos=size_t(at-chunk.begin())+key.size();float plain=24.0f,norm=23.0f/31.0f;std::memcpy(&chunk[pos],&plain,4);std::memcpy(&chunk[pos+4],&norm,4);}
+     bool accepted=found&&native->internalLoadState(chunk.data(),chunk.size());for(int i=0;i<3000&&native->busy();++i)idle(1);rest();
+     check(found&&accepted&&native->getInt(voices)==8,"a project saved with 24 voices is restored at eight");}}
+   // A list on screen is bound to its own parameter: the host hears of its step at once.
+   native->set(id("ui_page"),16);native->set(id("ui_section"),0);idle(20);int list=named("LFO sync");
+   bool stepped=list>=0&&native->param(list).kind!=mpc::Param::Kind::Float;float old=stepped?native->getNormalised(list):0;automatedTarget.store(-1);
+   effect->setParameter(effect,id("ui_knob_1"),old>.5f?0.0f:1.0f);for(int i=0;i<100&&automatedTarget.load()<0;++i)idle(1);
+   check(stepped&&native->getNormalised(list)!=old&&automatedTarget.load()==list,"a list turned by Q-Link is announced to the host for redrawing");
+   rest();native->set(id("ui_page"),0);native->set(id("visuals"),1);}
   // Single .vital files on any drive: tap = load, folder becomes the PRESET list.
   command(0);openItem("Plugin Content");openItem("Storage Tests");openItem("Loose Sounds");
   check(openItem("Second loose"),"browser lists single .vital files");
   check(native->get(cutoff)==53&&native->displayText(id("library_loaded_0"))=="Second loose","tapping a single .vital file loads that sound");
   check(native->displayText(id("load_status")).find("Loaded with changes")==0,"status names what a tolerant import left out");
-  check(native->displayText(id("active_bank_0"))=="Loose Sounds"&&dispatch(effGetProgramNameIndexed,8,0,externalName)==1&&std::string(externalName)=="First loose","folder of loose sounds becomes the native PRESET list");
-  select(8);check(native->get(cutoff)==52&&native->displayText(id("load_status"))=="Loaded: First loose","other sounds of that folder load from PRESET");
+  check(native->displayText(id("active_bank_0"))=="Loose Sounds"&&dispatch(effGetProgramNameIndexed,0,0,externalName)==1&&std::string(externalName)=="First loose","folder of loose sounds becomes the native PRESET list");
+  select(0);check(native->get(cutoff)==52&&native->displayText(id("load_status"))=="Loaded: First loose","other sounds of that folder load from PRESET");
   {void* chunk2=nullptr;auto n2=dispatch(effGetChunk,0,0,&chunk2);std::vector<uint8_t> saved((uint8_t*)chunk2,(uint8_t*)chunk2+n2);command(5);
    dispatch(effSetChunk,0,saved.size(),saved.data());waitNative();
    check(native->get(cutoff)==52&&native->displayText(id("active_bank_0"))=="Loose Sounds","project restore recovers a folder-based sound list");}
@@ -404,8 +468,9 @@ int main(int argc,char** argv){
   // CPU guard: an overloaded engine steals voices instead of dropping out, and recovers.
   {struct Ev6{int32_t n;intptr_t reserved;VstEvent* events[6];};VstMidiEvent notes[6]{};Ev6 chord{};
    for(int i=0;i<6;++i){notes[i].type=kVstMidiType;notes[i].byteSize=sizeof(VstMidiEvent);notes[i].midiData[0]=char(0x90);notes[i].midiData[1]=char(48+i*3);notes[i].midiData[2]=100;chord.events[i]=reinterpret_cast<VstEvent*>(&notes[i]);}chord.n=6;
+   native->set(Vitaleon::Voices,3);for(int i=0;i<4;++i)effect->processReplacing(effect,nullptr,outputs,128);
    native->set(Vitaleon::Voices,8);dispatch(effProcessEvents,0,0,&chord);for(int i=0;i<20;++i)effect->processReplacing(effect,nullptr,outputs,128);
-   check(native->testDynamicVoices()>=6,"CPU guard leaves the voice limit alone at normal load");
+   check(native->testDynamicVoices()==8,"CPU guard leaves the voice limit alone at normal load; a raised voice count applies at once");
    native->testLoad_.store(.95f);for(int i=0;i<400;++i)effect->processReplacing(effect,nullptr,outputs,128);
    check(native->testDynamicVoices()==2,"sustained overload steps the voice limit down to one pair");
    bool guardFinite=true;for(int n=0;n<128;++n)guardFinite&=std::isfinite(left[n])&&std::isfinite(right[n]);check(guardFinite,"audio stays finite while voices are stolen");

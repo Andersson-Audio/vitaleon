@@ -62,21 +62,14 @@ inline void Vitaleon::createControls(){
     const char* homeNames[]={"Master","Cutoff","Resonance","Attack","Release","Unison","Detune"};
     for(int i=0;i<7;++i){homeFullTargets_[i]=controlIndex(homeKeys[i]);auto id="home_"+std::to_string(i);auto name="Home "+std::string(homeNames[i]);addParam(mpc::floatParam(id.c_str(),name.c_str(),0,1,0));}
     homeFilter_=addParam(mpc::boolParam("home_filter_on","Home Filter",true));
-    // The first four stored program slots are converted in programSelected.
-    for(int program=0;program<4;++program){
-        std::vector<float> values;for(int i=0;i<numParams();++i)values.push_back(param(i).def);
-        values[FullMode]=1;values[Volume]=-24;values[Voices]=8;
-        auto put=[&](const char* key,float value){int index=controlIndex(key);if(index>=0)values[index]=value;};
-        put("voice_override",vital::VoiceHandler::kSteal);
-        put("volume",3136);
-        if(program==1){put("osc_1_unison_voices",4);put("osc_1_wave_frame",170);put("filter_1_on",1);put("filter_1_cutoff",85);
-            values[routes_[0].source]=float(std::find(sources_.begin(),sources_.end(),"lfo_1")-sources_.begin());
-            values[routes_[0].destination]=float(std::find(destinations_.begin(),destinations_.end(),"osc_1_wave_frame")-destinations_.begin());
-            put("modulation_1_amount",.22f);put("lfo_1_frequency",-1);put("lfo_1_sync",0);}
-        if(program==2){put("osc_2_on",1);put("osc_2_transpose",-12);put("osc_1_wave_frame",170);put("env_1_attack",.75f);put("env_1_release",1);put("reverb_on",1);put("reverb_dry_wet",.2f);}
-        if(program==3){put("sample_on",1);put("sample_level",.25f);put("filter_1_on",1);put("filter_1_cutoff",90);put("delay_on",1);put("delay_dry_wet",.15f);}
-        const char* names[]={"05 Full Init","06 Wide Saw","07 Layer Pad","08 Noise Echo"};addProgram(names[program],std::move(values));
-    }
+    // The PRESET list holds the installed sounds and nothing else; the first one
+    // is loaded when the plugin starts (see prepare). Only a plugin without any
+    // installed sound gets one "Init" program, so that it can still be played.
+    for(int i=0;i<numParams();++i)initValues_.push_back(param(i).def);
+    initValues_[FullMode]=1;initValues_[Volume]=-24;initValues_[Voices]=8;
+    initValues_[size_t(controlIndex("voice_override"))]=vital::VoiceHandler::kSteal;
+    initValues_[size_t(controlIndex("volume"))]=3136;
+    if(assets_[0].size()<=1)addProgram("Init",initValues_);
     createFilePrograms();
     createStorage();createNavigation();
 }

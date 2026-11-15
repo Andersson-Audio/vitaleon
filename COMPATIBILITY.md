@@ -36,7 +36,7 @@ A file is refused, and the current sound stays untouched, when:
 
 ## Settings applied on import
 
-Every imported sound starts at **1x oversampling** and with at most **eight voices**, because most presets are saved with 2x oversampling and the MPC's processor is small. Both can be raised under HOME > VOICES and are saved with the project. The preset file itself is never changed.
+Every imported sound starts at **1x oversampling** and with at most **eight voices**, because most presets are saved with 2x oversampling and the MPC's processor is small. Oversampling can be raised under HOME > VOICES and is saved with the project; eight voices is the limit of the voice control. The preset file itself is never changed.
 
 ## Not available
 

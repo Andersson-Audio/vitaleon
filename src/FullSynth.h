@@ -59,6 +59,10 @@ public:
     void testImport(const nlohmann::json& data){std::lock_guard<std::mutex> life(lifecycleMutex_);std::lock_guard<std::mutex> state(stateMutex_);fxWaitIdle();loadPreset(data);syncFullControls(true,true);connectRoutes();engine_->checkOversampling();warmGraph();refreshProxies();}
     const nlohmann::json& testAssets()const{return savedAssets_;}
     const std::vector<std::string>& testImportNotes()const{return importNotes_;}
+    // The Init sound (every control at its default), as the "Init" program selects it.
+    void testInit(){beginStateTransaction(true);for(size_t k=0;k<initValues_.size();++k)restoreParameter(int(k),param(int(k)).toNormalised(initValues_[k]));selectInit();endStateTransaction(true);reset();}
+    // Engine checks start from the Init state instead of the first installed sound.
+    void testNoStartSound(){startSound_.store(false);}
     bool testEngineSwitch(const std::string& key)const{for(const auto& b:bindings_)if(b.key==key)return b.value->value()!=0;return false;}
 #endif
 private:
@@ -79,7 +83,19 @@ private:
     std::atomic<int> browserPending_{0};
     int storageCommands_=-1,storageRows_=-1,storagePath_=-1,storageStatus_=-1,storagePage_=-1,activeBankText_=-1;
     int storageAvailable_=-1;
-    int uiGroup_=-1,uiPage_=-1,uiSection_=-1,uiKnobs_=-1;
+    int uiGroup_=-1,uiPage_=-1,uiSection_=-1,uiKnobs_=-1,uiBank_=-1;
+    // What the host still has to hear about the Q-Link slots (0.3.23). A moving control
+    // must not call into the host: 0.3.22 sent audioMasterAutomate on every movement and
+    // redrew the page when the knob group changed, and the controls felt sluggish on the
+    // device. The service thread sends these instead, the sound parameter and the page
+    // redraw only once the control has rested for kSlotRestMs.
+    static constexpr int kSlotRestMs=300;
+    std::array<std::atomic<int>,16> slotAutomated_{}; // sound parameter of a moved slot, -1 none
+    std::atomic<int> slotStepped_{-1};                // switch or list that stepped: redraw it now
+    std::atomic<bool> bankChanged_{false},bankRedraw_{false};
+    std::atomic<long long> slotEditMs_{0};            // time of the last slot write, 0 = at rest
+    static long long nowMs(){return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();}
+    void flushSlotNotifications();
     // Matrix table and its two-step target picker (helper views are hidden).
     int matrixView_=-1,pickGroupView_=-1,pickTargetView_=-1,routeTargetProxy_=-1,uiPick_=-1;
     void navigateTo(int page,int section);
@@ -101,8 +117,11 @@ private:
     void refreshNavigation();
     struct LibraryBank {std::string name;std::vector<int> files;};
     std::vector<LibraryBank> libraryBanks_;
-    int factoryProgramCount_=0;
+    int factoryProgramCount_=0; // 1 = the "Init" program of a plugin without sounds, else 0
     std::vector<int> filePrograms_; // immutable after construction; native VST programs
+    std::vector<float> initValues_; // plain values of the Init sound
+    std::atomic<bool> startSound_{false}; // load the first installed sound on first prepare
+    void selectInit();
     int libraryBank_=-1,libraryPage_=-1,libraryLoad_=-1,libraryPrevious_=-1,libraryNext_=-1,bankPrevious_=-1,bankNext_=-1;
     int libraryRows_=-1,libraryNames_=-1,libraryBankText_=-1,librarySelectedText_=-1,libraryLoadedText_=-1,libraryPageText_=-1;
     std::atomic<int> pendingPreset_{-1};
@@ -217,7 +236,7 @@ private:
     // dense preset costs about 22 % of a 128-frame block, effects another 16 %.
     // Instead of dropouts the oldest voices are stolen while the engine needs
     // more than 80 % of the block time; the limit recovers after 3 calm seconds.
-    float cpuLoad_=0;int dynamicVoices_=32;long guardHold_=0,calmFrames_=0;
+    float cpuLoad_=0;int dynamicVoices_=32,guardUser_=-1;long guardHold_=0,calmFrames_=0;
     void cpuGuard(float ratio,int frames);
 public:
     std::atomic<float> testLoad_{-1.0f};
@@ -236,6 +255,7 @@ private:
     void diagApply(int config);void diagStep(int frames);void diagReport();
 public:
     bool testAsleep()const{return asleep_;}
+    bool testSlotsAtRest()const{return slotEditMs_.load()==0;}
 private:
     int displayCountdown_=0,lastPreset_=0,lastSample_=0,lastShape_=0;
     std::array<int,3> lastTable_{{0,0,0}};

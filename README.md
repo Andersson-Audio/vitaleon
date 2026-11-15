@@ -13,7 +13,7 @@ Vitaleon runs the sound engine of Matt Tytel's Vital 1.0.6 (GPLv3) inside the MP
 
 ## Status
 
-Version 0.3.19. This is a young project.
+Version 0.3.24. This is a young project.
 
 | | |
 |---|---|
@@ -30,7 +30,7 @@ Download the release ZIP, unzip it and copy the folder `Andersson Audio - VST - 
 ## First steps
 
 1. Create a plugin track and choose **Vitaleon** under External Plugins.
-2. Pick a sound in the MPC's **PRESET** list. After eight basic built-in sounds come the 32 factory sounds (BA bass, LD lead, PD pad, KY keys, PL pluck, SQ sequence, FX).
+2. The plugin starts with the first factory sound loaded. Pick another in the MPC's **PRESET** list: it holds the 32 factory sounds (BA bass, LD lead, PD pad, KY keys, PL pluck, SQ sequence, FX).
 3. The footer switches between HOME, OSC, FILTER, ENV, LFO, FX and OTHER. Each group has its pages across the top.
 4. **HOME > LIBRARY** browses drives. OPEN enters a drive, folder or bank; LOAD loads a sound.
 5. **OTHER > MATRIX** holds the modulation routes. PICK on a row opens the target chooser.
@@ -42,7 +42,7 @@ Save your edits with the MPC project. The plugin state, including imported table
 
 The MPC has a small processor for a synth of this size. Vitaleon is set up around that:
 
-- Imported sounds start at 1x oversampling and at most eight voices. Both can be raised under **HOME > VOICES**.
+- A sound has at most eight voices. Imported sounds start at 1x oversampling, which can be raised under **HOME > VOICES**.
 - The effect chain runs on a second processor core. This adds 128 samples of latency, which is reported to the MPC.
 - Effects whose mix sits at zero behind a macro are skipped until the macro opens them.
 - If the audio load stays too high, the plugin lowers the voice limit in pairs and raises it again when the load falls.

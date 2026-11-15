@@ -17,6 +17,16 @@ def native_label_data(label_type,colour,height=30.0,justification='left',text=No
 g.label_data=native_label_data
 skin=project/'skins';skin.mkdir(exist_ok=True)
 params=json.loads((project/'build/params.json').read_text())['params']; byname={p['name']:p for p in params}
+# The build's parameter dump holds the values of whatever sound the plugin had loaded
+# when it was made (since 0.3.20 the first installed sound). Value and text of every
+# parameter therefore come from tools/init-values.json: the Init state of a plugin
+# without sounds, written by tests/run_full_checks.py. The skin no longer depends on
+# the installed sounds.
+init_values=json.loads((root/'init-values.json').read_text())
+assert len(init_values)==len(params),'tools/init-values.json is stale: run tests/run_full_checks.py and copy build/full-checks/init-values.json'
+for p,v in zip(params,init_values):
+    assert v['index']==p['index'] and v['name']==p['name'],(p['name'],v['name'])
+    p['default']=v['value'];p['display']=v['display']
 catalog_data=json.loads((root/'catalog.json').read_text());catalog=catalog_data['controls']
 catalog_by_id={c['id']:c for c in catalog}
 # The host metadata dump omits very long choice lists. The pinned engine catalog
@@ -52,7 +62,12 @@ for p in params:
     if p['name'].startswith('Library ') or p['name']=='Preset' or 'Table' in p['name'] or (p['kind']!='bool' and 'File' in p['name']):
         if p['kind']=='bool' and p['name'].startswith('Library ') and p.get('choices')!=['Off','On']:p['kind']='int'  # a 2-entry list is not a switch
         if p.get('choices')!=['Off','On']:p['choices']=[]
-    if p['name'] in ['UI Group','UI Page','UI Section','UI Pick']:
+    # The library command buttons set themselves back after a tap. The parameter dump
+    # therefore reads them as switches or as plain values, depending on timing
+    # (0.3.20 lost their labels that way). They are switches.
+    if p['name'] in ['Drives','Up Folder','Refresh Drives','Previous Files','Next Files','Installed Banks']+['Open Row %d'%n for n in range(1,7)]:
+        p['kind']='bool';p['choices']=['Off','On']
+    if p['name'] in ['UI Group','UI Page','UI Section','UI Pick','UI Bank']:
         # Navigation state must never get replacementStrings. The parameter
         # dump sweeps UI Section while the 2-section Home view clamps it, so it
         # is misdetected as a 0/1 switch. A 2-string entry makes the MPC treat
@@ -204,7 +219,40 @@ for color in COLORS:
 
 def parameter(name):return params[index(name)]
 
-def control(name,title,x,y,color='osc',visible=None,compact=False):
+# Q-Link frame (0.3.22, user request): a thin outline around the four controls of the
+# knob group in use, as other plugins show it. The MPC's own frame (qlinkBoundsData)
+# is fixed per native tab and cannot follow these views, so the frame is drawn here and
+# follows the plugin's 'UI Bank' (the group of the knob turned last).
+frame_images=set()
+def frame_image(w,h,color):
+    name=f'qframe-{w}x{h}-{color}.png'
+    if name not in frame_images:
+        image=Image.new('RGBA',(w,h),(0,0,0,0));rgb=COLORS[color][2:]
+        ImageDraw.Draw(image).rounded_rectangle((1,1,w-2,h-2),radius=10,outline=tuple(int(rgb[i:i+2],16) for i in (0,2,4))+(210,),width=2)
+        image.save(skin/name);frame_images.add(name)
+    return name
+def qlink_frames(cells,section,color):
+    frames=[]
+    for group in range(0,len(cells),4):
+        boxes=[tuple(map(int,dict(dict(c)['bounds'])['bounds'].split())) for c in cells[group:group+4]]
+        row=len({(b[1],b[3]) for b in boxes})==1 and all(b2[0]-(b1[0]+b1[2])<=16 for b1,b2 in zip(boxes,boxes[1:]))
+        if row:boxes=[(boxes[0][0],boxes[0][1],boxes[-1][0]+boxes[-1][2]-boxes[0][0],boxes[0][3])]
+        for x,y,w,h in boxes:
+            m=6 if row else 4
+            frames.append(g.entry('Q-Link frame','Image',{'version':1,'colour':'0','image':frame_image(w+2*m,h+2*m,color)},f'{x-m} {y-m} {w+2*m} {h+2*m}','No','Hide','Always',
+                invalidating=[f'IndexedEnabling/{section}/32/'+handle('UI Section'),f'IndexedEnabling/{group//4}/4/'+handle('UI Bank')]))
+    return frames
+
+# Q-Link slots (0.3.22). The 16 hardware knobs write the parameters 'UI Control 1..16';
+# the plugin forwards a slot to the control of the visible section. A knob or fader
+# on screen is bound to that same slot, so the MPC moves the control it wrote, as
+# with any plugin whose knobs map straight to its controls. 0.3.20 and earlier bound
+# it to the sound parameter and it stood still while the knob turned; 0.3.21 asked
+# for display updates instead, which made every control stutter. 'Target' keeps the
+# sound parameter in the entry for the checks; the MPC ignores it. Switches, lists
+# and file selectors stay on their own parameter: their steps and labels belong to it.
+def slot_data(title,name,slot):return [('Data','WithName['+title+']/'+handle(f'UI Control {slot+1}')),('Target',handle(name))]
+def control(name,title,x,y,color='osc',visible=None,compact=False,slot=None):
     p=parameter(name);choices=p.get('choices',[])
     if p['kind']=='bool':role='toggle'
     elif len(choices)>1:role='menu'
@@ -233,7 +281,8 @@ def control(name,title,x,y,color='osc',visible=None,compact=False):
         elif name.startswith('filter_') or name in ['Home Cutoff','Home Resonance']:color='fx'
         elif name.startswith('macro_'):color='mod'
         key='home-'+role+'-'+color
-    return g.entry(title,key,{'version':1,'handleName':'Data'},f'{x} {y} '+('184 188' if compact else '296 156'),'Yes','Hide' if visible else 'Show','Always',[('Data','WithName['+title+']/'+handle(name))]+([('Menu',handle(name))] if role=='menu' else []),invalidating=visible)
+    data=slot_data(title,name,slot) if slot is not None and role in ['knob','bipolar','fader'] else [('Data','WithName['+title+']/'+handle(name))]
+    return g.entry(title,key,{'version':1,'handleName':'Data'},f'{x} {y} '+('184 188' if compact else '296 156'),'Yes','Hide' if visible else 'Show','Always',data+([('Menu',handle(name))] if role=='menu' else []),invalidating=visible)
 
 def home_browser(children):
     children.append(rect('browser divider',(800,96,1,516),LINE))
@@ -345,9 +394,11 @@ def matrix_table(children):
         for row in range(8):
             route=page*8+row+1;y=148+row*52;knob=handle(f'UI Control {row+1}')
             cell=lambda key,param,x,w:g.entry(f'route {route}',key,{'version':1,'handleName':'Data'},f'{x} {y} {w} 52','Yes','Hide','Always',[('Data','WithName[Route '+str(route)+']/'+handle(param)),('QTarget',knob)],invalidating=show)
+            if row%4==0:children.append(g.entry('Q-Link frame','Image',{'version':1,'colour':'0','image':frame_image(238,216,'mod')},f'322 {y-4} 238 216','No','Hide','Always',invalidating=show+[f'IndexedEnabling/{row//4}/4/'+handle('UI Bank')]))
             children.append(conditional(label(f'{route:02d}',(24,y+4,40,44),MUTED,20),show))
             children.append(cell('mx-source',f'Route {route} Source',68,250))
-            children.append(cell('mx-amount',f'modulation_{route}_amount',326,230))
+            amount=g.entry(f'route {route}','mx-amount',{'version':1,'handleName':'Data'},f'326 {y} 230 52','Yes','Hide','Always',[('Data','WithName[Route '+str(route)+']/'+knob),('Target',handle(f'modulation_{route}_amount')),('QTarget',knob)],invalidating=show)
+            children.append(amount)
             children.append(cell('mx-target',f'Route {route} Target',564,330))
             children.append(conditional(nav_button('PICK',902,y,76,52,'UI Pick',route,65,'mod'),show))
             children.append(conditional(nav_button('BIPOLAR',990,y,88,52,f'modulation_{route}_bipolar',color='mod'),show))
@@ -415,6 +466,7 @@ for i,view in enumerate(VIEWS):
                 if d['type']=='Plotter':b[:]=[(k,'1000 140 248 190' if k=='bounds' else v) for k,v in b]
         for section,part in enumerate(sections):
             if chart in ['mxtable','pickgroup','picktarget']:break
+            cells=[]
             for slot,name in enumerate(part['items']):
                 row,col=divmod(slot,4);x=24+312*col;y=(228+168*row if chart not in [None,'home'] else 166+190*row)
                 if isinstance(chart,int) and slot:x,y=[(648,140),(960,140),(24,408),(336,408),(648,408),(960,408)][slot-1]
@@ -427,7 +479,7 @@ for i,view in enumerate(VIEWS):
                     if caption.startswith(prefix):caption=caption[len(prefix):]
                 caption=caption.replace('Spectral Amount','Spectral Amt').replace('Warp Amount','Warp Amount').replace('Unison Detune','Detune').replace('Smooth Interpolation','Smooth Frames').replace('Keytrack','Key Track').replace('Transpose Quantize','Pitch Quantize').replace('Lower Threshold','Lower Thresh.').replace('Upper Threshold','Upper Thresh.').replace('Dry Wet','Mix').replace('Home ','').replace('Macro Control','Macro')
                 if isinstance(chart,int) and slot==0:
-                    cell=g.entry('Frame','wave-frame',{'version':1,'handleName':'Data'},'648 304 296 88','Yes','Hide','Always',[('Data','WithName[Frame]/'+handle(name))],invalidating=[f'IndexedEnabling/{section}/32/'+handle('UI Section')])
+                    cell=g.entry('Frame','wave-frame',{'version':1,'handleName':'Data'},'648 304 296 88','Yes','Hide','Always',slot_data('Frame',name,slot),invalidating=[f'IndexedEnabling/{section}/32/'+handle('UI Section')])
                 elif chart=='effects' and section==0:
                     row,col=divmod(slot,3);caption=name[:-3].replace('_',' ').title()
                     cell=g.entry(caption,'effect-toggle',{'version':1,'handleName':'Data'},f'{24+col*416} {152+row*132} 392 112','Yes','Hide','Always',[('Data','WithName['+caption+']/'+handle(name))],invalidating=[f'IndexedEnabling/{section}/32/'+handle('UI Section')])
@@ -437,9 +489,11 @@ for i,view in enumerate(VIEWS):
                         if name in ['Voices','Home Attack','Home Release']:control_color='env'
                         elif name.startswith('filter_') or name in ['Home Cutoff','Home Resonance','Home Filter']:control_color='fx'
                         elif name.startswith('macro_'):control_color='mod'
-                    cell=control(name,caption,x,y,control_color,visible=[f'IndexedEnabling/{section}/32/'+handle('UI Section')])
+                    cell=control(name,caption,x,y,control_color,visible=[f'IndexedEnabling/{section}/32/'+handle('UI Section')],slot=slot)
                 dict(dict(cell)['handle remapping'])['map'].append(g.obj(('key','QTarget'),('value',handle(f'UI Control {slot+1}'))))
-                children.append(cell)
+                cells.append(cell)
+            # Frames first: they lie under the controls and take no touch.
+            children.extend(qlink_frames(cells,section,color));children.extend(cells)
         if chart=='home':
             children.append(label('Active bank',(24,532,140,24),MUTED,18))
             for part in range(2):children.append(label('Bank',(168+part*360,532,354,24),COLORS['env'],18,value=f'active_bank_{part}'))

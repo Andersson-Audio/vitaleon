@@ -28,4 +28,6 @@ for i in range(8):(external/f'Folder {i}').mkdir(exist_ok=True)
 env=os.environ.copy();env['MPC_PLUGIN_FOLDER']=str(fixture)
 with (out/'results.log').open('w') as log:
     result=subprocess.run([str(exe),args.presets,str(out/'preview-values.json'),str(fixture),str(project/'skins/TUI.json')],env=env,stdout=log,stderr=subprocess.STDOUT)
-print((out/'results.log').read_text());raise SystemExit(result.returncode)
+    empty=out/'no-content';(empty/'Content').mkdir(parents=True,exist_ok=True);bare=os.environ.copy();bare['MPC_PLUGIN_FOLDER']=str(empty)
+    log.flush();second=subprocess.run([str(exe),'--no-content',str(out/'init-values.json')],env=bare,stdout=log,stderr=subprocess.STDOUT)
+print((out/'results.log').read_text());raise SystemExit(result.returncode or second.returncode)
