@@ -5,7 +5,7 @@
 ## What you need
 
 - An Akai MPC running in standalone mode with MPC OS 3.10.1 or later. Check **Preferences > Info** and update if it is older.
-- The release ZIP, about 100 MB. Most of it is the factory wavetables and sounds.
+- The release ZIP from [dreyandersson.com/vitaleon](https://dreyandersson.com/vitaleon/), about 100 MB. Most of it is the factory wavetables and sounds.
 
 Tested on an MPC Live II. Other models are untested.
 
@@ -59,7 +59,7 @@ Delete the folder `Andersson Audio - VST - Vitaleon`.
 ## Voraussetzungen
 
 - Eine Akai MPC im Standalone-Betrieb mit MPC OS 3.10.1 oder neuer. Unter **Preferences > Info** nachsehen und bei Bedarf aktualisieren.
-- Das Release-ZIP, rund 100 MB. Den größten Teil machen die Werks-Wavetables und Werkssounds aus.
+- Das Release-ZIP von [dreyandersson.com/vitaleon](https://dreyandersson.com/vitaleon/), rund 100 MB. Den größten Teil machen die Werks-Wavetables und Werkssounds aus.
 
 Getestet auf einer MPC Live II. Andere Modelle sind ungetestet.
 

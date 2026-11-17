@@ -4,6 +4,8 @@ A wavetable synthesizer plugin for Akai MPC standalone, by Andersson Audio.
 
 Vitaleon runs the sound engine of Matt Tytel's Vital 1.0.6 (GPLv3) inside the MPC's plugin format, with a touch interface built for the MPC screen. It is an independent project and is **not affiliated with or endorsed by Matt Tytel or Vital Audio**.
 
+**Download:** the ready-to-install package, with the factory wavetables and sounds, is on [dreyandersson.com/vitaleon](https://dreyandersson.com/vitaleon/). This repository holds the source code.
+
 - Three wavetable oscillators, a sampler, two voice filters, six envelopes, eight LFOs, four random sources, four macros
 - A 64-route modulation matrix shown as a table: source, amount, target
 - Nine effects: distortion, chorus, flanger, phaser, delay, reverb, compressor, EQ, filter
@@ -25,7 +27,7 @@ If you try it on another model, a report of what works is welcome.
 
 ## Install
 
-Download the release ZIP, unzip it and copy the folder `Andersson Audio - VST - Vitaleon` into a folder named `VST2 Plugins` at the top level of a drive the MPC can read. The MPC's internal storage is the recommended place. Full steps in English and German: [INSTALL.md](INSTALL.md).
+Download the release ZIP from [dreyandersson.com/vitaleon](https://dreyandersson.com/vitaleon/), unzip it and copy the folder `Andersson Audio - VST - Vitaleon` into a folder named `VST2 Plugins` at the top level of a drive the MPC can read. The MPC's internal storage is the recommended place. Full steps in English and German: [INSTALL.md](INSTALL.md).
 
 ## First steps
 
