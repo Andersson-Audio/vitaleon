@@ -101,7 +101,7 @@ The factory content is **not part of this repository and not under the GPL**. Yo
 
 The release package also holds the bank Fizmatic: 54 sounds by Drey Andersson, each led by one of the 54 Fizmo wavetables, which are in the package as files too. Bank and tables fall under the factory content licence and are not part of this repository either.
 
-The release package also holds two banks of sounds by qub1t, QUB1T - Volume 1 (95 sounds) and QUB1T - Volume 2 (100 sounds). They are qub1t's work; they are not part of this repository and not under the GPL either.
+The release package also holds two banks of sounds by qub1t, QUB1T - Volume 1 (95 sounds) and QUB1T - Volume 2 (100 sounds). **A big thank you to qub1t, who gave his permission to include his sounds in this release.** They are his work; they are not part of this repository and not under the GPL either.
 
 ## Build from source
 
