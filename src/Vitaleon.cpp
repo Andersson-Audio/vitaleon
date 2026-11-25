@@ -179,7 +179,14 @@ protected:
     static mpc::PluginInfo makeInfo() {
         mpc::PluginInfo info;
         info.name = "Vitaleon"; info.vendor = "Andersson Audio";
-        info.uniqueId = MPC_FOURCC('A','l','7','q'); info.version = 319; info.latencySamples = 128; /* effect pipeline, see FullSynth.h */
+        info.uniqueId = MPC_FOURCC('A','l','7','q');
+#ifdef VITALEON_VARIANT
+        // Measurement copies that sit beside the release on the device, never released:
+        // their own name and id, so the host keeps them apart.
+        static const char* const variantNames[] = {"Vitaleon T0","Vitaleon T1","Vitaleon T2","Vitaleon T3","Vitaleon T4","Vitaleon T5","Vitaleon T6","Vitaleon T7","Vitaleon T8","Vitaleon T9"};
+        info.name = variantNames[VITALEON_VARIANT]; info.uniqueId = MPC_FOURCC('A','l','7','0' + VITALEON_VARIANT);
+#endif
+        info.version = 319; info.latencySamples = 128; /* effect pipeline, see FullSynth.h */
         info.isInstrument = true; info.wantsMidi = true;
         info.numInputs = 0; info.numOutputs = 2;
         return info;
@@ -187,5 +194,11 @@ protected:
 };
 #include "FullSynth.h"
 #ifndef VITALEON_TEST
+#ifdef VITALEON_HOSTLOG
+// Measurement build: the calls of the host pass through the recorder of FullHostLog.inc.
+static AEffect* vitaleonCreate(audioMasterCallback host) MPC_PLUGIN_ENTRY_BODY(Vitaleon)
+extern "C" MPC_EXPORT AEffect* VSTPluginMain(audioMasterCallback host){AEffect* effect=vitaleonCreate(host);vitaleon_hostlog::install(effect);return effect;}
+#else
 MPC_PLUGIN_ENTRY(Vitaleon)
+#endif
 #endif

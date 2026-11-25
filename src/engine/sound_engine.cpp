@@ -15,6 +15,7 @@
  */
 
 #include "sound_engine.h"
+#include "vitaleon_profile.h"
 
 #include "compressor_module.h"
 #include "flanger_module.h"
@@ -293,8 +294,10 @@ namespace vital {
 
     int normal_samples = std::max(1, num_samples / getOversampleAmount());
     for (Processor* processor : local_order_) {
-      if (processor->enabled() && !isStageB(processor))
+      if (processor->enabled() && !isStageB(processor)) {
+        VITALEON_PROFILE_SCOPE(processor);
         processor->process(normal_samples * processor->getOversampleAmount());
+      }
     }
 
     for (int i = 0; i < num_feedbacks; ++i) {
@@ -320,6 +323,17 @@ namespace vital {
     int samples = std::min(normal_samples * effect_chain_->getOversampleAmount(), kMaxBufferSize * kMaxOversample);
     utils::copyBuffer(staged_audio_.get(), effect_chain_->input(ReorderableEffectChain::kAudio)->source->buffer, samples);
     utils::copyBuffer(staged_direct_.get(), voice_handler_->getDirectOutput()->buffer, samples);
+  }
+
+  void SoundEngine::handoffAdd(SoundEngine* other, int num_samples) {
+    int normal_samples = std::max(1, num_samples / getOversampleAmount());
+    int samples = std::min(normal_samples * effect_chain_->getOversampleAmount(), kMaxBufferSize * kMaxOversample);
+    const poly_float* audio = other->effect_chain_->input(ReorderableEffectChain::kAudio)->source->buffer;
+    const poly_float* direct = other->voice_handler_->getDirectOutput()->buffer;
+    for (int i = 0; i < samples; ++i) {
+      staged_audio_[i] += audio[i];
+      staged_direct_[i] += direct[i];
+    }
   }
 
   void SoundEngine::processStageB(int num_samples) {

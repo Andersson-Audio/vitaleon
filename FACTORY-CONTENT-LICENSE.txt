@@ -1,8 +1,10 @@
 Vitaleon factory wavetables and factory sounds
 Copyright (c) 2026 Drey Andersson (Andersson Audio). All rights reserved.
 
-This licence covers the 32 wavetables in Content/Wavetables/Factory and the
-32 sounds in Content/Banks/Vitaleon Factory.vitalbank ("the factory content").
+This licence covers the 32 wavetables in Content/Wavetables/Factory, the
+32 sounds in Content/Banks/Vitaleon Factory.vitalbank, the 54 wavetables in
+Content/Wavetables/Fizmatic and the 54 sounds in Content/Banks/Fizmatic.vitalbank
+with the wavetables they carry ("the factory content").
 It does not cover the Vitaleon program, which is free software under the
 GNU General Public License, version 3 or later.
 
@@ -28,8 +30,10 @@ The factory content is provided as it is, without warranty of any kind.
 Vitaleon Werks-Wavetables und Werkssounds
 Copyright (c) 2026 Drey Andersson (Andersson Audio). Alle Rechte vorbehalten.
 
-Diese Lizenz gilt fuer die 32 Wavetables in Content/Wavetables/Factory und
-die 32 Sounds in Content/Banks/Vitaleon Factory.vitalbank ("Werksinhalte").
+Diese Lizenz gilt fuer die 32 Wavetables in Content/Wavetables/Factory, die
+32 Sounds in Content/Banks/Vitaleon Factory.vitalbank, die 54 Wavetables in
+Content/Wavetables/Fizmatic und die 54 Sounds in Content/Banks/Fizmatic.vitalbank
+samt der Wavetables, die sie mitbringen ("Werksinhalte").
 Sie gilt nicht fuer das Programm Vitaleon; das ist freie Software unter der
 GNU General Public License, Version 3 oder spaeter.
 

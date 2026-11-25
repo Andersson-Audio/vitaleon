@@ -27,7 +27,7 @@ for c in m['controls']:
  if c['id'].endswith('_destination') and c['id'].startswith(('osc_','sample_')):
   c['max']=len(arrays['kDestinationNames'])-1;c['choices']=arrays['kDestinationNames']
  if c['id']=='oversampling':c['default']=0
- if c['id']=='volume':c['default']=3136 # -24 dB init level; imported levels remain untouched.
+ if c['id']=='volume':c['default']=5476 # -6 dB init level (0.3.57; it was 3136 = -24 dB); imported levels remain untouched.
  if c['id']=='voice_override':c['default']=1 # Vital kSteal: retain the verified MPC fixed-limit policy.
  # Real saved Vital controls can slightly exceed their displayed UI ranges.
  # Keep those numerical values intact instead of clamping imported sound settings.

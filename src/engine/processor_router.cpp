@@ -17,6 +17,7 @@
 #include "processor_router.h"
 
 #include "feedback.h"
+#include "vitaleon_profile.h"
 #include "synth_constants.h"
 
 #include <algorithm>
@@ -79,6 +80,7 @@ namespace vital {
         int processor_samples = normal_samples * processor->getOversampleAmount();
 
         VITAL_ASSERT(processor->checkInputAndOutputSize(processor_samples));
+        VITALEON_PROFILE_SCOPE(processor);
         processor->process(processor_samples);
         VITAL_ASSERT(utils::isFinite(processor->output()->buffer, processor->isControlRate() ? 0 : processor_samples));
       }

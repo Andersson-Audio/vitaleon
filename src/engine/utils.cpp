@@ -66,8 +66,11 @@ namespace vital {
     }
 
     void floatToPcmData(int16_t* pcm_data, const float* float_data, int size) {
+      // Rounded, not cut off (Vitaleon 0.3.25): reading the stored value back and storing it
+      // again must give the same number. Cut off, audio kept in a sound or project lost up
+      // to one step each time it was loaded and saved.
       for (int i = 0; i < size; ++i)
-        pcm_data[i] = utils::clamp(float_data[i] * kPcmScale, -kPcmScale, kPcmScale);
+        pcm_data[i] = static_cast<int16_t>(std::lround(utils::clamp(float_data[i] * kPcmScale, -kPcmScale, kPcmScale)));
     }
 
     void complexToPcmData(int16_t* pcm_data, const std::complex<float>* complex_data, int size) {

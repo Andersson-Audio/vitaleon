@@ -14,7 +14,7 @@ def audit(path):
         previous=surface_states.UI;surface_states.UI=ui
         previous_defs=surface_states.DEFS;surface_states.DEFS={d['key']:d['value'] for d in ui['componentDefinitions']['localComponentDefinitions']}
         result=surface_states.audit();surface_states.UI=previous;surface_states.DEFS=previous_defs
-        return {'pages':40,'states':result['states'],'button_instances':result['buttons'],'label_button_collisions':len(result['errors']),'findings':result['errors']}
+        return {'pages':42,'states':result['states'],'button_instances':result['buttons'],'label_button_collisions':len(result['errors']),'findings':result['errors']}
     definitions={d['key']:d['value'] for d in ui['componentDefinitions']['localComponentDefinitions']}
     findings=[];button_count=0
     def expand(entries,panel,ox=0,oy=0):

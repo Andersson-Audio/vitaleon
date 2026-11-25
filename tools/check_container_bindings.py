@@ -20,12 +20,13 @@ assert not invalid_parents(entries),invalid_parents(entries)
 broken=copy.deepcopy(entries)
 for e in broken:
     if e['componentData']['type'].startswith('view-'):e['handle remapping']['map']=[]
-assert len(invalid_parents(broken))==28
+assert len(invalid_parents(broken))==31
 for page,section,values in states():
     old=expand(broken,values);fixed=expand(entries,values)
     content=lambda items:[e for e in items if e['kind']=='Label' and 64<=e['box'][1]<568]
     assert not content(old),(page,section,'old regression must reproduce a blank body')
     assert content(fixed),(page,section,'fixed body must contain real controls/text')
-    if VIEWS[page]['chart']!='library' and not (VIEWS[page]['chart']=='picktarget' and section==0):  # section 0 of the picker is never shown
+    if VIEWS[page]['chart'] not in ['library','retired'] and not (VIEWS[page]['chart']=='picktarget' and section==0):  # section 0 of the picker and the retired page are never shown
         assert any((e['kind'] in ['Knob','Button','Slider'] or (e['kind']=='Label' and e['data']['type']=='Value')) and 128<=e['box'][1]<568 for e in fixed),(page,section,'control/value fields missing')
-print('PASS: all 28 parent models bound; original defect reproduced in all 150 states; fixed content present in all 150 states')
+count=len(list(states()))
+print(f'PASS: all 31 parent models bound; original defect reproduced in all {count} states; fixed content present in all {count} states')

@@ -15,6 +15,7 @@
  */
 
 #include "voice_handler.h"
+#include "vitaleon_profile.h"
 
 #include "synth_constants.h"
 #include "utils.h"
@@ -219,6 +220,7 @@ namespace vital {
   }
 
   void VoiceHandler::processVoice(AggregateVoice* voice, int num_samples) {
+    VITALEON_PROFILE_SCOPE(voice->processor.get());
     voice->processor->process(num_samples);
   }
 

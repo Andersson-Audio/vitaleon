@@ -19,9 +19,12 @@ inline void Vitaleon::createControls(){
         const int index=addParam(p);indices_[key]=index;
         bindings_.push_back({index,controls.at(key),key,-100,key=="oversampling"});
     }
+    isBinding_.assign(size_t(numParams()),0);for(const auto& b:bindings_)isBinding_[size_t(b.index)]=1;
     sources_.push_back("None");destinations_.push_back("None");
     for(const auto& name:catalog["sources"])sources_.push_back(name.get<std::string>());
     for(const auto& name:catalog["destinations"])destinations_.push_back(name.get<std::string>());
+    for(const auto& name:sources_)sourceTint_.push_back(static_cast<unsigned char>(tintOf(name)));
+    for(const auto& name:destinations_)targetTint_.push_back(static_cast<unsigned char>(tintOf(name)));
     sourceOutputs_.push_back(nullptr);
     for(size_t i=1;i<sources_.size();++i)sourceOutputs_.push_back(engine_->getModulationSource(sources_[i]));
     for(int i=0;i<64;++i){
@@ -68,7 +71,7 @@ inline void Vitaleon::createControls(){
     for(int i=0;i<numParams();++i)initValues_.push_back(param(i).def);
     initValues_[FullMode]=1;initValues_[Volume]=-24;initValues_[Voices]=8;
     initValues_[size_t(controlIndex("voice_override"))]=vital::VoiceHandler::kSteal;
-    initValues_[size_t(controlIndex("volume"))]=3136;
+    initValues_[size_t(controlIndex("volume"))]=5476;   // (-6 dB + 80)^2; 0.3.57, it was 3136 = -24 dB
     if(assets_[0].size()<=1)addProgram("Init",initValues_);
     createFilePrograms();
     createStorage();createNavigation();
@@ -81,6 +84,17 @@ inline int Vitaleon::addProxyBank(const std::string& title,const std::string& pr
         mpc::Param p=param(bank.targets[0][i]);p.id="edit_"+prefix+"_"+suffixes[i];p.name=title+" "+suffixes[i];bank.proxies.push_back(addParam(p));
     }
     const int selector=bank.selector;banks_.push_back(std::move(bank));return selector;
+}
+// The section a modulation source or target belongs to, by its name: 0 none, 1 OSC (with the
+// sample), 2 FILTER, 3 ENV, 4 LFO, 5 FX. The same rule as tint_of() in tools/generate_surface.py.
+inline int Vitaleon::tintOf(const std::string& name){
+    auto starts=[&](const char* prefix){return name.rfind(prefix,0)==0;};
+    if(starts("osc_")||starts("sample_"))return 1;
+    if(starts("filter_1_")||starts("filter_2_"))return 2;
+    if(starts("env_"))return 3;
+    if(starts("lfo_"))return 4;
+    for(const char* effect:{"chorus_","compressor_","delay_","distortion_","eq_","flanger_","phaser_","reverb_","filter_fx_"})if(starts(effect))return 5;
+    return 0;
 }
 inline void Vitaleon::createBanks(){
     envSelect_=addProxyBank("Env","env",6,{"delay","attack","hold","decay","sustain","release","attack_power","decay_power","release_power"});
@@ -115,11 +129,16 @@ inline void Vitaleon::refreshProxies(){
     for(const auto& bank:banks_){int sel=mpc::clamp(getInt(bank.selector)-1,0,int(bank.targets.size())-1);
         for(size_t i=0;i<bank.proxies.size();++i)publishNormalised(bank.proxies[i],getNormalised(bank.targets[sel][i]));}
     if(advancedSelector_>=0)publishNormalised(advancedValue_,getNormalised(advancedTargets_[getInt(advancedSelector_)]));
-    if(effectSlot_>=0){int order[9];vital::utils::decodeFloatToOrder(order,get(effectOrder_),9);publish(effectType_,float(order[getInt(effectSlot_)-1]));}
+    if(effectSlot_>=0){int order[9];vital::utils::decodeFloatToOrder(order,get(effectOrder_),9);publish(effectType_,float(order[getInt(effectSlot_)-1]));
+        // The overview: what stands at each place of the chain and whether it is on.
+        if(fxSlotOn_>=0)for(int i=0;i<9;++i){const int type=mpc::clamp(order[i],0,8);publish(fxSlotOn_+i,get(fxOnParam_[size_t(type)]));publishNormalised(fxSlotText_+i,float(type+1)/10.0f);}}
     refreshNavigation();
 }
 inline void Vitaleon::parameterChanged(int index,float plain){
+    // The value is stored already. Counted before the ready_ check: nothing may be lost.
+    if(index>=0&&index<int(isBinding_.size())&&isBinding_[size_t(index)])controlGeneration_.fetch_add(1,std::memory_order_release);
     if(!ready_)return;
+    lastEditMs_.store(nowMs(),std::memory_order_relaxed);   // pictures wait until the controls rest, see notifyVisuals
     fxPlanDirty_.store(true,std::memory_order_relaxed);
     if(navigationChanged(index,plain)||storageChanged(index))return;
     if(index==FullMode){publish(FullMode,1);return;}
@@ -127,6 +146,9 @@ inline void Vitaleon::parameterChanged(int index,float plain){
     // never reread a proxy that may already have been refreshed to its old target.
     if(index>=homeControls_&&index<homeControls_+7){setNormalised(homeTarget(index-homeControls_),plain);return;}
     if(index==homeFilter_){set(controlIndex("filter_1_on"),plain);return;}
+    // A switch of the FX overview belongs to the effect that stands at that place of the chain.
+    if(fxSlotOn_>=0&&index>=fxSlotOn_&&index<fxSlotOn_+9){int order[9];vital::utils::decodeFloatToOrder(order,get(effectOrder_),9);
+        set(fxOnParam_[size_t(mpc::clamp(order[index-fxSlotOn_],0,8))],plain);return;}
     if(libraryChanged(index,plain))return;
     for(const auto& b:banks_)for(size_t i=0;i<b.proxies.size();++i)if(index==b.proxies[i]){
         int sel=mpc::clamp(getInt(b.selector)-1,0,int(b.targets.size())-1);set(b.targets[sel][i],plain);
@@ -141,7 +163,7 @@ inline void Vitaleon::parameterChanged(int index,float plain){
         curveSelectionChanged_.store(true);inspectCurve_.store(true);return;
     }
     unsigned curveEdit=index==lfoShape_?1:index==pointCount_?2:index==pointX_?4:index==pointY_?8:index==pointCurve_?16:index==lfoSmooth_?32:0;
-    if(curveEdit){curveEdits_.fetch_or(curveEdit);requestService(false);return;}
+    if(curveEdit){curveEdits_.fetch_or(curveEdit);curveEditPending_.store(true);return;}
     if(index==lfoShapeSelect_){requestService(false);return;}
     if(index==FullMode||index==controlIndex("oversampling")||index==presetSelect_||index==sampleSelect_||index==lfoShapeSelect_||
        index==curveTarget_||index==routeSelect_||index==pointSelect_||index==lfoSelect_||index==pointCount_||index==pointX_||index==pointY_||index==pointCurve_||index==lfoShape_||index==lfoSmooth_){
@@ -159,6 +181,12 @@ inline bool Vitaleon::formatValue(int index,float plain,std::string& out){
         out=param(target).display(value);if(!param(target).unit.empty())out+=" "+param(target).unit;return true;
     }
     if(formatLibrary(index,out))return true;
+    if(formatSoundText(index,out))return true;
+    if(formatSaveText(index,out))return true;
+    if(formatSampleName(index,out))return true;
+    if(formatTableName(index,out))return true;
+    if(formatTableRow(index,out))return true;
+    if(formatFxSlot(index,plain,out))return true;
     for(const auto& b:banks_)for(size_t i=0;i<b.proxies.size();++i)if(index==b.proxies[i])return formatValue(b.targets[mpc::clamp(getInt(b.selector)-1,0,int(b.targets.size())-1)][i],plain,out);
     if(index==advancedValue_){int target=advancedTargets_[getInt(advancedSelector_)];out=displayText(target);return true;}
     auto fileLabel=[&](int group){int n=mpc::clamp(int(plain),0,int(assets_[group].size())-1);const auto& asset=assets_[group][n];out=n?std::filesystem::path(asset.entry.empty()?asset.path:asset.entry).stem().string():asset.label;return true;};

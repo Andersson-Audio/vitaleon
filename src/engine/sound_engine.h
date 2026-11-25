@@ -108,6 +108,9 @@ namespace vital {
       bool canSplit();
       void processStageA(int num_samples);
       void handoff(int num_samples);
+      // Adds the voice output of a second engine (same sample rate and oversampling,
+      // its stage A finished) to what handoff() staged. For voices split over two engines.
+      void handoffAdd(SoundEngine* other, int num_samples);
       void processStageB(int num_samples);
 
     private:
